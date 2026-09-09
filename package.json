@@ -1,0 +1,11 @@
+{
+  "name": "stern-gerlach",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --dir frontend dev",
+    "build": "pnpm --dir frontend build",
+    "test": "pnpm --dir frontend test && cargo test --manifest-path physics-wasm/Cargo.toml",
+    "build:wasm": "wasm-pack build --release --target web physics-wasm --out-dir ../frontend/public/wasm",
+    "typecheck": "pnpm --dir frontend typecheck"
+  }
+}

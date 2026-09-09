@@ -1,0 +1,189 @@
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+import { useStore } from '../state/store'
+import { M_TO_UNITS } from '../physics/constants'
+import { spinColor } from './ApparatusModel'
+import { sampleScreenHits } from '../physics/quantum'
+import { adaptiveZRangeMm } from '../physics/scale'
+
+const W = 512
+const H = 256
+/** screen spans y in [-20,20] mm; z span is adaptive per run */
+const Y_SPAN = 40
+
+/** unified incremental hit source (cascade trajectories or quantum sampling) */
+interface HitSource {
+  times: Float64Array
+  ys: Float64Array
+  zs: Float64Array
+  thetas: Float64Array
+  signs: Int8Array
+}
+
+export function DetectorScreen() {
+  const screenX = useStore((s) => s.config.screenX)
+  const mode = useStore((s) => s.config.mode)
+  const particleCount = useStore((s) => s.config.particleCount)
+  const epoch = useStore((s) => s.epoch)
+  const result = useStore((s) => s.result)
+  const quantum = useStore((s) => s.quantum)
+  const qHeader = quantum?.header ?? null
+  const qBranches = quantum?.branches ?? null
+
+  const canvas = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = W
+    c.height = H
+    return c
+  }, [])
+
+  const texture = useMemo(() => {
+    const t = new THREE.CanvasTexture(canvas)
+    t.minFilter = THREE.LinearFilter
+    return t
+  }, [canvas])
+
+  const lastDrawn = useRef(0)
+  const sourceRef = useRef<HitSource | null>(null)
+
+  // adaptive z half-range (mm): covers every hit of the run, quantized -> stable
+  const zRange = useMemo(() => {
+    let maxAbs = 0
+    if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
+      const f = quantum.header.frameCount - 1
+      for (const b of quantum.branches) {
+        const ext = Math.abs(b.cz[f]) + 4 * b.sz[f]
+        if (ext > maxAbs) maxAbs = ext
+      }
+      return adaptiveZRangeMm(maxAbs * M_TO_UNITS)
+    }
+    if (result) {
+      for (let i = 0; i < result.nParticles; i++) {
+        if (result.absorbed[i]) continue
+        const v = Math.abs(result.hitZ[i]) * M_TO_UNITS
+        if (v > maxAbs) maxAbs = v
+      }
+    }
+    return adaptiveZRangeMm(maxAbs)
+  }, [mode, result, quantum])
+  const Z_SPAN = zRange * 2
+
+  const clear = () => {
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#0a1424'
+    ctx.fillRect(0, 0, W, H)
+    ctx.strokeStyle = 'rgba(90,140,220,0.18)'
+    ctx.lineWidth = 1
+    for (let i = 1; i < 8; i++) {
+      const x = (i * W) / 8
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
+    }
+    for (let i = 1; i < 4; i++) {
+      const y = (i * H) / 4
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
+    }
+    texture.needsUpdate = true
+    lastDrawn.current = 0
+  }
+
+  useEffect(() => {
+    clear()
+    sourceRef.current = null
+  }, [clear, epoch, mode])
+
+  useEffect(() => () => texture.dispose(), [texture])
+
+  // rebuild the hit source when inputs change
+  useEffect(() => {
+    let src: HitSource | null = null
+    if (mode === 'quantum') {
+      if (qHeader && qBranches && qBranches.length) {
+        const q = { header: qHeader, branches: qBranches }
+        const n = Math.min(particleCount, 20000)
+        const h = sampleScreenHits(q, screenX, n, 4242)
+        src = { times: h.times, ys: h.ys, zs: h.zs, thetas: h.thetas, signs: h.signs }
+      }
+    } else if (result) {
+      const order: number[] = []
+      for (let i = 0; i < result.nParticles; i++) if (!result.absorbed[i]) order.push(i)
+      order.sort((a, b) => result.hitTime[a] - result.hitTime[b])
+      const m = order.length
+      const times = new Float64Array(m)
+      const ys = new Float64Array(m)
+      const zs = new Float64Array(m)
+      const thetas = new Float64Array(m)
+      const signs = new Int8Array(m)
+      for (let k = 0; k < m; k++) {
+        const i = order[k]
+        times[k] = result.hitTime[i]
+        ys[k] = result.hitY[i]
+        zs[k] = result.hitZ[i]
+        thetas[k] = result.spinTheta[i]
+        signs[k] = result.spinSign[i]
+      }
+      src = { times, ys, zs, thetas, signs }
+    }
+    sourceRef.current = src
+    clear()
+  }, [mode, result, qHeader, qBranches, screenX, particleCount, clear])
+
+  useFrame(() => {
+    const src = sourceRef.current
+    if (!src) return
+    const { tCurrent } = useStore.getState()
+    const ctx = canvas.getContext('2d')!
+    // binary search: first index with time > tCurrent
+    let lo = lastDrawn.current
+    if (lo > src.times.length) lo = src.times.length
+    let hi = src.times.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (src.times[mid] <= tCurrent) lo = mid + 1
+      else hi = mid
+    }
+    let drew = false
+    for (let k = lastDrawn.current; k < lo; k++) {
+      const z = src.zs[k] * M_TO_UNITS
+      const y = src.ys[k] * M_TO_UNITS
+      if (Math.abs(z) > Z_SPAN / 2 || Math.abs(y) > Y_SPAN / 2) continue
+      const px = (z / Z_SPAN + 0.5) * W
+      const py = (0.5 - y / Y_SPAN) * H
+      const sign = src.signs[k]
+      const [r, g, b] = sign === 0 ? [0.65, 0.8, 1] : spinColor(src.thetas[k], sign)
+      ctx.fillStyle = `rgba(${(r * 255) | 0},${(g * 255) | 0},${(b * 255) | 0},0.55)`
+      ctx.beginPath()
+      ctx.arc(px, py, 1.3, 0, Math.PI * 2)
+      ctx.fill()
+      drew = true
+    }
+    if (drew) texture.needsUpdate = true
+    lastDrawn.current = lo
+  })
+
+  const xU = screenX * M_TO_UNITS
+  return (
+    <group position={[xU + 4, 0, 0]}>
+      {/* glowing screen */}
+      <mesh rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[Z_SPAN, Y_SPAN]} />
+        <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {/* backlit frame */}
+      <mesh position={[3, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <planeGeometry args={[Z_SPAN + 8, Y_SPAN + 8]} />
+        <meshStandardMaterial color="#32405c" metalness={0.5} roughness={0.4} />
+      </mesh>
+      {/* side rails */}
+      <mesh position={[1.5, 0, Z_SPAN / 2 + 5]}>
+        <boxGeometry args={[7, Y_SPAN + 10, 4]} />
+        <meshStandardMaterial color="#52627a" metalness={0.5} roughness={0.35} />
+      </mesh>
+      <mesh position={[1.5, 0, -Z_SPAN / 2 - 5]}>
+        <boxGeometry args={[7, Y_SPAN + 10, 4]} />
+        <meshStandardMaterial color="#52627a" metalness={0.5} roughness={0.35} />
+      </mesh>
+      <pointLight position={[-30, 0, 0]} color="#3a5aff" intensity={8} distance={120} decay={2} />
+    </group>
+  )
+}
