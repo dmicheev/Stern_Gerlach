@@ -229,3 +229,23 @@ input[type='range']::-webkit-slider-thumb {
 .hint-pop::-webkit-scrollbar-thumb { background: rgba(111, 210, 255, 0.3); border-radius: 3px; }
 .mode-legend { display: flex; gap: 10px; flex-wrap: wrap; color: var(--dim); font-size: 10px; margin: 2px 0 6px; }
 .hint-row { display: flex; gap: 4px; margin-bottom: 4px; }
+
+/* ---------- 3D device annotations ---------- */
+.annot {
+  background: rgba(14, 22, 42, 0.88);
+  border: 1px solid rgba(111, 210, 255, 0.4);
+  border-radius: 8px;
+  padding: 6px 9px;
+  backdrop-filter: blur(6px);
+  max-width: 240px;
+  pointer-events: auto;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+.annot-title {
+  color: #6fd2ff; font-weight: 700; font-size: 11px; letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 4px; margin-bottom: 2px;
+  white-space: nowrap;
+}
+.annot-desc { color: #b9cce6; font-size: 10px; line-height: 1.45; }
+.annot-toggle { margin-left: 2px; }

@@ -25,6 +25,7 @@ interface Store {
   tCurrent: number
   selectedApparatusId: string | null
   showGhost: boolean
+  showAnnotations: boolean
   result: SimResult | null
   ghostResult: SimResult | null
   computing: boolean
@@ -52,6 +53,7 @@ interface Store {
   setTimeScale(v: number): void
   setTCurrent(v: number): void
   setShowGhost(v: boolean): void
+  setShowAnnotations(v: boolean): void
   setResult(r: SimResult | null): void
   setGhostResult(r: SimResult | null): void
   setComputing(v: boolean): void
@@ -144,6 +146,7 @@ export const useStore = create<Store>((set) => ({
   tCurrent: 0,
   selectedApparatusId: null,
   showGhost: false,
+  showAnnotations: true,
   result: null,
   ghostResult: null,
   computing: false,
@@ -214,6 +217,7 @@ export const useStore = create<Store>((set) => ({
   setTimeScale: (v) => set({ timeScale: v }),
   setTCurrent: (v) => set({ tCurrent: v }),
   setShowGhost: (v) => set({ showGhost: v }),
+  setShowAnnotations: (v) => set({ showAnnotations: v }),
   setResult: (r) => set({ result: r }),
   setGhostResult: (r) => set({ ghostResult: r }),
   setComputing: (v) => set({ computing: v }),

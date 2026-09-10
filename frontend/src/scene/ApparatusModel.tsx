@@ -2,8 +2,10 @@ import { useRef } from 'react'
 import { Html } from '@react-three/drei'
 import { TransformControls } from '@react-three/drei'
 import { useStore } from '../state/store'
+import { Annotation } from './Annotation'
 import { M_TO_UNITS } from '../physics/constants'
 import type { Apparatus } from '../physics/types'
+import { useTranslation } from 'react-i18next'
 import type { Group } from 'three'
 import * as THREE from 'three'
 import type React from 'react'
@@ -16,6 +18,8 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
   const updateApparatus = useStore((s) => s.updateApparatus)
   const ref = useRef<Group>(null)
   const selected = selectedId === apparatus.id
+  const { t } = useTranslation()
+  const showAnnot = useStore((s) => s.showAnnotations)
 
   const L = apparatus.length * M_TO_UNITS
   const gapU = apparatus.gap * M_TO_UNITS
@@ -97,6 +101,14 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
         <Html position={[L / 2, 16, -gapU - 32]} center style={{ pointerEvents: 'none' }}>
           <div style={{ color: '#7aa0ff', fontSize: 11, fontWeight: 700, textShadow: '0 0 6px #000' }}>S</div>
         </Html>
+        {showAnnot && (
+          <Annotation
+            position={[L / 2, 0, gapU + 62]}
+            title={`${t('annot.apparatus')} θ=${apparatus.angleDeg.toFixed(0)}°`}
+            desc={`G = ${apparatus.gradient.toFixed(0)} Т/м · ${t('annot.apparatusDesc')}`}
+            hintId="gradient"
+          />
+        )}
         <Html position={[L / 2, -34, 0]} center style={{ pointerEvents: 'none' }}>
           <div style={{ color: '#9fb6d9', fontSize: 10, opacity: 0.85, textShadow: '0 0 6px #000' }}>
             θ = {apparatus.angleDeg.toFixed(0)}°

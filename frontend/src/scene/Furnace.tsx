@@ -1,9 +1,14 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { useTranslation } from 'react-i18next'
+import { useStore } from '../state/store'
+import { Annotation } from './Annotation'
 import type { Mesh, PointLight } from 'three'
 
 /** Silver oven at x=0 with a glowing aperture. Scene units: mm. */
 export function Furnace() {
+  const { t } = useTranslation()
+  const show = useStore((s) => s.showAnnotations)
   const glow = useRef<Mesh>(null)
   const light = useRef<PointLight>(null)
 
@@ -43,6 +48,9 @@ export function Furnace() {
         <meshBasicMaterial color="#ffb347" toneMapped={false} />
       </mesh>
       <pointLight ref={light} position={[40, 0, 0]} color="#ff9a3c" intensity={26} distance={160} decay={2} />
+      {show && (
+        <Annotation position={[10, 0, 62]} title={t('annot.furnace')} desc={t('annot.furnaceDesc')} hintId="vMean" />
+      )}
     </group>
   )
 }

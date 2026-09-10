@@ -2,6 +2,8 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
+import { useTranslation } from 'react-i18next'
+import { Annotation } from './Annotation'
 import { useStore } from '../state/store'
 import { M_TO_UNITS } from '../physics/constants'
 import { BELL_LAYOUT } from '../physics/bell'
@@ -16,6 +18,8 @@ const dummy = new THREE.Object3D()
 
 /** entangled pair source (station C analog): crystal + herald flash */
 function PairSource() {
+  const { t } = useTranslation()
+  const showAnnot = useStore((s) => s.showAnnotations)
   const glow = useRef<THREE.Mesh>(null)
   const light = useRef<THREE.PointLight>(null)
   useFrame(({ clock }) => {
@@ -51,6 +55,9 @@ function PairSource() {
         <meshBasicMaterial color="#c48bff" transparent opacity={0.7} toneMapped={false} />
       </mesh>
       <pointLight ref={light} color="#b97dff" intensity={20} distance={220} decay={2} />
+      {showAnnot && (
+        <Annotation position={[0, 0, 48]} title={t('annot.source')} desc={t('annot.sourceDesc')} hintId="bellSource" />
+      )}
       {/* event-ready ring */}
       <mesh rotation={[0, 0, Math.PI / 2]}>
         <torusGeometry args={[11, 0.7, 8, 40]} />
@@ -68,6 +75,8 @@ interface StationProps {
 
 /** measurement station: SG magnet snapping to the chosen basis + two-port detector */
 function BellStation({ side, label, color }: StationProps) {
+  const { t } = useTranslation()
+  const showAnnot = useStore((s) => s.showAnnotations)
   const magnet = useRef<THREE.Group>(null)
   const lamp = useRef<THREE.Mesh>(null)
   const x0 = side * SX
@@ -156,6 +165,22 @@ function BellStation({ side, label, color }: StationProps) {
           {label}
         </div>
       </Html>
+      {showAnnot && (
+        <Annotation
+          position={[x0, 0, 66]}
+          title={`${t('annot.station')} ${label}`}
+          desc={t('annot.stationDesc')}
+          hintId="bellStation"
+        />
+      )}
+      {showAnnot && (
+        <Annotation
+          position={[detX, 0, 44]}
+          title={t('annot.detectors')}
+          desc={t('annot.detectorsDesc')}
+          hintId="chshE"
+        />
+      )}
     </group>
   )
 }

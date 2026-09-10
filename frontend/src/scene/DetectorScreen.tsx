@@ -3,7 +3,9 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useStore } from '../state/store'
 import { M_TO_UNITS } from '../physics/constants'
+import { useTranslation } from 'react-i18next'
 import { spinColor } from './ApparatusModel'
+import { Annotation } from './Annotation'
 import { sampleScreenHits } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
 
@@ -22,6 +24,9 @@ interface HitSource {
 }
 
 export function DetectorScreen() {
+  const { t } = useTranslation()
+  const kind = useStore((s) => s.kind)
+  const showAnnot = useStore((s) => s.showAnnotations)
   const screenX = useStore((s) => s.config.screenX)
   const mode = useStore((s) => s.config.mode)
   const particleCount = useStore((s) => s.config.particleCount)
@@ -184,6 +189,9 @@ export function DetectorScreen() {
         <meshStandardMaterial color="#52627a" metalness={0.5} roughness={0.35} />
       </mesh>
       <pointLight position={[-30, 0, 0]} color="#3a5aff" intensity={8} distance={120} decay={2} />
+      {kind === 'cascade' && showAnnot && (
+        <Annotation position={[0, 0, 72]} title={t('annot.screen')} desc={t('annot.screenDesc')} hintId="hist" />
+      )}
     </group>
   )
 }

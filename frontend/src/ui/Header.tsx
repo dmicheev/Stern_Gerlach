@@ -13,6 +13,8 @@ export function Header() {
   const engineKind = useStore((s) => s.engineKind)
   const computing = useStore((s) => s.computing)
   const mode = useStore((s) => s.config.mode)
+  const showAnnotations = useStore((s) => s.showAnnotations)
+  const setShowAnnotations = useStore((s) => s.setShowAnnotations)
 
   return (
     <header className="topbar">
@@ -61,6 +63,14 @@ export function Header() {
             {computing ? t('computing') : engineKind === 'wasm' ? `Rust·${t('wasmEngine')}` : t('jsEngine')}
           </span>
         )}
+
+        <button
+          className={`btn small annot-toggle ${showAnnotations ? 'btn-active' : ''}`}
+          onClick={() => setShowAnnotations(!showAnnotations)}
+          title={t('annot.toggle')}
+        >
+          ⓘ {t('annot.toggle')}
+        </button>
 
         <div className="lang-switch">
           <button className={lang === 'ru' ? 'active' : ''} onClick={() => setLang('ru')}>RU</button>
