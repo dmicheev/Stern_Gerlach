@@ -9,6 +9,7 @@ import { StatsPanel } from './ui/StatsPanel'
 import { BellPanel } from './ui/BellPanel'
 import { CHSHPanel } from './ui/CHSHPanel'
 import { TimelinePanel } from './ui/TimelinePanel'
+import { ScreenDetailModal } from './ui/ScreenDetailModal'
 import './App.css'
 
 export default function App() {
@@ -38,12 +39,12 @@ export default function App() {
         <>
           <BellPanel />
           <div className="right-stack">
-            <div className="panel right-panel" />
             <CHSHPanel />
           </div>
         </>
       )}
       <TimelinePanel />
+      <ScreenDetailModal />
     </div>
   )
 }

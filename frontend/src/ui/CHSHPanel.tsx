@@ -5,7 +5,6 @@ import { Section } from './widgets'
 import { Hint } from './Hint'
 import { quantumS } from '../physics/bell'
 
-const W = 272
 const H = 96
 
 /** prefix sums for instant cumulative CHSH at any landed-pair index */
@@ -88,53 +87,67 @@ export function CHSHPanel() {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = '#0a1424'
-    ctx.fillRect(0, 0, W, H)
-    const yOf = (S: number) => {
-      const max = 3
-      return H - 8 - (Math.max(-1, Math.min(max, S)) / max) * (H - 16)
-    }
-    // bound lines: 2 and 2√2
-    ctx.strokeStyle = 'rgba(255,140,120,0.75)'
-    ctx.setLineDash([4, 3])
-    ctx.beginPath(); ctx.moveTo(0, yOf(2)); ctx.lineTo(W, yOf(2)); ctx.stroke()
-    ctx.strokeStyle = 'rgba(130,255,170,0.75)'
-    ctx.beginPath(); ctx.moveTo(0, yOf(2 * Math.SQRT2)); ctx.lineTo(W, yOf(2 * Math.SQRT2)); ctx.stroke()
-    ctx.setLineDash([])
-    ctx.fillStyle = 'rgba(255,150,130,0.9)'
-    ctx.font = '9px monospace'
-    ctx.fillText('S=2', 4, yOf(2) - 3)
-    ctx.fillStyle = 'rgba(130,255,170,0.9)'
-    ctx.fillText('2√2', 4, yOf(2 * Math.SQRT2) - 3)
+    canvas.style.height = `${H}px`
 
-    if (prefix && live && live.trials > 30) {
-      const { cum, cnt, n } = prefix
-      const points = Math.min(140, Math.floor(live.trials / 10))
-      const step = Math.max(1, Math.floor(live.trials / points))
-      ctx.beginPath()
-      let started = false
-      for (let k = step; k <= landed; k += step) {
-        const e = (a: number, b: number) => {
-          const c = a * 2 + b
-          const kk = cnt[c * (n + 1) + k]
-          return kk ? cum[c * (n + 1) + k] / kk : 0
-        }
-        const trialsHere =
-          cnt[(n + 1) + k] + cnt[2 * (n + 1) + k] + cnt[3 * (n + 1) + k] + cnt[0 * (n + 1) + k]
-        if (trialsHere < 10) continue
-        const S = e(0, 0) + e(0, 1) + e(1, 0) - e(1, 1)
-        const x = (k / Math.max(1, landed)) * W
-        const y = yOf(S)
-        if (!started) {
-          ctx.moveTo(x, y)
-          started = true
-        } else ctx.lineTo(x, y)
+    const render = () => {
+      const dpr = window.devicePixelRatio || 1
+      const W = Math.max(80, canvas.clientWidth || 272)
+      canvas.width = Math.round(W * dpr)
+      canvas.height = Math.round(H * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, W, H)
+      ctx.fillStyle = '#0a1424'
+      ctx.fillRect(0, 0, W, H)
+      const yOf = (S: number) => {
+        const max = 3
+        return H - 8 - (Math.max(-1, Math.min(max, S)) / max) * (H - 16)
       }
-      ctx.strokeStyle = live.S > 2 ? '#7dffb0' : '#7aa8d8'
-      ctx.lineWidth = 1.6
-      ctx.stroke()
+      // bound lines: 2 and 2√2
+      ctx.strokeStyle = 'rgba(255,140,120,0.75)'
+      ctx.setLineDash([4, 3])
+      ctx.beginPath(); ctx.moveTo(0, yOf(2)); ctx.lineTo(W, yOf(2)); ctx.stroke()
+      ctx.strokeStyle = 'rgba(130,255,170,0.75)'
+      ctx.beginPath(); ctx.moveTo(0, yOf(2 * Math.SQRT2)); ctx.lineTo(W, yOf(2 * Math.SQRT2)); ctx.stroke()
+      ctx.setLineDash([])
+      ctx.font = '10px ui-monospace, Menlo, monospace'
+      ctx.fillStyle = 'rgba(255,150,130,0.9)'
+      ctx.fillText('S=2', 4, yOf(2) - 3)
+      ctx.fillStyle = 'rgba(130,255,170,0.9)'
+      ctx.fillText('2√2', 4, yOf(2 * Math.SQRT2) - 3)
+
+      if (prefix && live && live.trials > 30) {
+        const { cum, cnt, n } = prefix
+        const points = Math.min(140, Math.floor(live.trials / 10))
+        const step = Math.max(1, Math.floor(live.trials / points))
+        ctx.beginPath()
+        let started = false
+        for (let k = step; k <= landed; k += step) {
+          const e = (a: number, b: number) => {
+            const c = a * 2 + b
+            const kk = cnt[c * (n + 1) + k]
+            return kk ? cum[c * (n + 1) + k] / kk : 0
+          }
+          const trialsHere =
+            cnt[(n + 1) + k] + cnt[2 * (n + 1) + k] + cnt[3 * (n + 1) + k] + cnt[0 * (n + 1) + k]
+          if (trialsHere < 10) continue
+          const S = e(0, 0) + e(0, 1) + e(1, 0) - e(1, 1)
+          const x = (k / Math.max(1, landed)) * W
+          const y = yOf(S)
+          if (!started) {
+            ctx.moveTo(x, y)
+            started = true
+          } else ctx.lineTo(x, y)
+        }
+        ctx.strokeStyle = live.S > 2 ? '#7dffb0' : '#7aa8d8'
+        ctx.lineWidth = 1.6
+        ctx.stroke()
+      }
     }
+
+    render()
+    const ro = new ResizeObserver(() => render())
+    ro.observe(canvas)
+    return () => ro.disconnect()
   }, [live, landed, prefix])
 
   const theory = quantumS(bell.anglesA, bell.anglesB, bell.visibility)
@@ -154,7 +167,7 @@ export function CHSHPanel() {
               </span>
             </div>
             <div className="hint-row"><Hint id="sCurve" /> <Hint id="chshTheory" /></div>
-            <canvas ref={canvasRef} width={W} height={H} className="hist-canvas" />
+            <canvas ref={canvasRef} className="hist-canvas" />
             <table className="branch-table chsh-table">
               <thead>
                 <tr>

@@ -51,6 +51,7 @@ export function BellPanel() {
             <button
               key={m}
               className={`btn mode-btn ${bell.model === m ? 'btn-active' : ''}`}
+              aria-pressed={bell.model === m}
               onClick={() => updateBell({ model: m })}
             >
               {m === 'quantum' ? t('bell.modelQuantum') : t('bell.modelLocal')}
@@ -58,9 +59,7 @@ export function BellPanel() {
           ))}
         </div>
         <div className="mode-desc">
-          {bell.model === 'quantum'
-            ? 'E(a,b) = −cos(θa−θb), S → 2√2'
-            : 'скрытые параметры: S ≤ 2 всегда (теорема Белла)'}{' '}
+          {bell.model === 'quantum' ? t('bell.descQuantum') : t('bell.descLocal')}{' '}
           <Hint id={bell.model === 'quantum' ? 'bellModelQuantum' : 'bellModelLocal'} />
         </div>
 

@@ -8,7 +8,6 @@ import { M_TO_UNITS } from '../physics/constants'
 import { adaptiveZRangeMm } from '../physics/scale'
 import { evalProfile } from '../physics/quantum'
 
-const W = 272
 const H = 130
 const BINS = 72
 
@@ -48,7 +47,7 @@ function drawAxes(
   ctx.beginPath(); ctx.moveTo(ML + PW / 2, topY); ctx.lineTo(ML + PW / 2, baseY); ctx.stroke()
   // x ticks: -80..+80
   ctx.fillStyle = 'rgba(160,190,230,0.9)'
-  ctx.font = '9px monospace'
+  ctx.font = '10px ui-monospace, Menlo, monospace'
   ctx.textAlign = 'center'
   const ticks = [-1, -0.5, 0, 0.5, 1].map((f) => Math.round(f * zRange))
   for (const z of ticks) {
@@ -151,111 +150,125 @@ export function StatsPanel() {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    // plot area with margins for axis labels
-    const ML = 34 // left margin (y axis)
-    const MB = 16 // bottom margin (x axis)
-    const MT = 6
-    const MR = 6
-    const PW = W - ML - MR
-    const PH = H - MB - MT
-    const baseY = MT + PH
-    const xOfZ = (zmm: number) => ML + ((zmm + zRange) / (2 * zRange)) * PW
-    const yOfV = (v: number, max: number) => baseY - (v / max) * PH
+    canvas.style.height = `${H}px`
 
-    ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = '#0a1424'
-    ctx.fillRect(0, 0, W, H)
-    ctx.font = '9px monospace'
+    const render = () => {
+      const dpr = window.devicePixelRatio || 1
+      const W = Math.max(80, canvas.clientWidth || 272)
+      canvas.width = Math.round(W * dpr)
+      canvas.height = Math.round(H * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // plot area with margins for axis labels
+      const ML = 34 // left margin (y axis)
+      const MB = 16 // bottom margin (x axis)
+      const MT = 6
+      const MR = 6
+      const PW = W - ML - MR
+      const PH = H - MB - MT
+      const baseY = MT + PH
+      const xOfZ = (zmm: number) => ML + ((zmm + zRange) / (2 * zRange)) * PW
+      const yOfV = (v: number, max: number) => baseY - (v / max) * PH
 
-    if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
-      const header = quantum.header
-      const q = { header, branches: quantum.branches }
-      const screenX = useStore.getState().config.screenX
-      const tq = Math.min(header.tTotal, tCurrent)
-      let max = 1e-9
-      const rows = 96
-      const prof = new Float32Array(rows)
-      for (let r = 0; r < rows; r++) {
-        const zNorm = 1 - (r + 0.5) / rows
-        const zM = (zNorm * zRange) / M_TO_UNITS // evalProfile expects meters
-        const v = evalProfile(q, screenX, tq, zM)
-        prof[r] = v
-        if (v > max) max = v
-      }
-      // |psi|^2 profile along z at the screen column
-      ctx.beginPath()
-      for (let r = 0; r < rows; r++) {
-        const zNorm = 1 - 2 * (r / rows)
-        const px = xOfZ(zNorm * zRange)
-        const py = yOfV(prof[r], max)
-        if (r === 0) ctx.moveTo(px, py)
-        else ctx.lineTo(px, py)
-      }
-      ctx.strokeStyle = '#7ad0ff'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, max, false, t, zRange)
-    } else if (result) {
-      // stacked per-bin histogram by branch (no cumulative plateaus)
-      const classical = mode === 'classical'
-      interface Group { theta: number; sign: number; bins: number[] }
-      const groups = new Map<string, Group>()
-      for (let i = 0; i < result.nParticles; i++) {
-        if (result.absorbed[i] || result.hitTime[i] > tCurrent) continue
-        const zmm = result.hitZ[i] * M_TO_UNITS
-        const bin = Math.floor(((zmm + zRange) / (2 * zRange)) * BINS)
-        if (bin < 0 || bin >= BINS) continue
-        const theta = result.spinTheta[i]
-        const sign = result.spinSign[i]
-        const key = classical || sign === 0 ? 'plain' : `${theta.toFixed(2)}|${sign}`
-        let g = groups.get(key)
-        if (!g) {
-          g = { theta, sign, bins: new Array(BINS).fill(0) }
-          groups.set(key, g)
+      ctx.clearRect(0, 0, W, H)
+      ctx.fillStyle = '#0a1424'
+      ctx.fillRect(0, 0, W, H)
+      ctx.font = '10px ui-monospace, Menlo, monospace'
+
+      if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
+        const header = quantum.header
+        const q = { header, branches: quantum.branches }
+        const screenX = useStore.getState().config.screenX
+        const tq = Math.min(header.tTotal, tCurrent)
+        let max = 1e-9
+        const rows = 96
+        const prof = new Float32Array(rows)
+        for (let r = 0; r < rows; r++) {
+          const zNorm = 1 - (r + 0.5) / rows
+          const zM = (zNorm * zRange) / M_TO_UNITS // evalProfile expects meters
+          const v = evalProfile(q, screenX, tq, zM)
+          prof[r] = v
+          if (v > max) max = v
         }
-        g.bins[bin]++
-      }
-      const stack = new Array(BINS).fill(0)
-      const stacked: { bins: number[]; base: number[]; color: [number, number, number] }[] = []
-      for (const g of groups.values()) {
-        const color: [number, number, number] =
-          classical || g.sign === 0 ? [0.65, 0.8, 1] : spinColor(g.theta, g.sign)
-        stacked.push({ bins: g.bins, base: [...stack], color })
-        for (let b = 0; b < BINS; b++) stack[b] += g.bins[b]
-      }
-      let max = 1
-      for (let b = 0; b < BINS; b++) if (stack[b] > max) max = stack[b]
-      const bw = PW / BINS
-      for (const { bins, base, color } of stacked) {
+        // |psi|^2 profile along z at the screen column
         ctx.beginPath()
-        // top edge (step), then bottom edge back
-        for (let b = 0; b <= BINS; b++) {
-          const v = b < BINS ? base[b] + bins[b] : base[b - 1] + bins[b - 1]
-          const px = ML + b * bw
-          const py = yOfV(v, max)
-          if (b === 0) ctx.moveTo(px, py)
+        for (let r = 0; r < rows; r++) {
+          const zNorm = 1 - 2 * (r / rows)
+          const px = xOfZ(zNorm * zRange)
+          const py = yOfV(prof[r], max)
+          if (r === 0) ctx.moveTo(px, py)
           else ctx.lineTo(px, py)
-          if (b < BINS) ctx.lineTo(px + bw, py)
         }
-        for (let b = BINS - 1; b >= 0; b--) {
-          const px = ML + b * bw
-          ctx.lineTo(px + bw, yOfV(base[b], max))
-          ctx.lineTo(px, yOfV(base[b], max))
+        ctx.strokeStyle = '#7ad0ff'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, max, false, t, zRange)
+      } else if (result) {
+        // stacked per-bin histogram by branch (no cumulative plateaus)
+        const classical = mode === 'classical'
+        interface Group { theta: number; sign: number; bins: number[] }
+        const groups = new Map<string, Group>()
+        for (let i = 0; i < result.nParticles; i++) {
+          if (result.absorbed[i] || result.hitTime[i] > tCurrent) continue
+          const zmm = result.hitZ[i] * M_TO_UNITS
+          const bin = Math.floor(((zmm + zRange) / (2 * zRange)) * BINS)
+          if (bin < 0 || bin >= BINS) continue
+          const theta = result.spinTheta[i]
+          const sign = result.spinSign[i]
+          const key = classical || sign === 0 ? 'plain' : `${theta.toFixed(2)}|${sign}`
+          let g = groups.get(key)
+          if (!g) {
+            g = { theta, sign, bins: new Array(BINS).fill(0) }
+            groups.set(key, g)
+          }
+          g.bins[bin]++
         }
-        ctx.closePath()
-        ctx.fillStyle = cssColor(color[0], color[1], color[2], 0.55)
-        ctx.fill()
+        const stack = new Array(BINS).fill(0)
+        const stacked: { bins: number[]; base: number[]; color: [number, number, number] }[] = []
+        for (const g of groups.values()) {
+          const color: [number, number, number] =
+            classical || g.sign === 0 ? [0.65, 0.8, 1] : spinColor(g.theta, g.sign)
+          stacked.push({ bins: g.bins, base: [...stack], color })
+          for (let b = 0; b < BINS; b++) stack[b] += g.bins[b]
+        }
+        let max = 1
+        for (let b = 0; b < BINS; b++) if (stack[b] > max) max = stack[b]
+        const bw = PW / BINS
+        for (const { bins, base, color } of stacked) {
+          ctx.beginPath()
+          // top edge (step), then bottom edge back
+          for (let b = 0; b <= BINS; b++) {
+            const v = b < BINS ? base[b] + bins[b] : base[b - 1] + bins[b - 1]
+            const px = ML + b * bw
+            const py = yOfV(v, max)
+            if (b === 0) ctx.moveTo(px, py)
+            else ctx.lineTo(px, py)
+            if (b < BINS) ctx.lineTo(px + bw, py)
+          }
+          for (let b = BINS - 1; b >= 0; b--) {
+            const px = ML + b * bw
+            ctx.lineTo(px + bw, yOfV(base[b], max))
+            ctx.lineTo(px, yOfV(base[b], max))
+          }
+          ctx.closePath()
+          ctx.fillStyle = cssColor(color[0], color[1], color[2], 0.55)
+          ctx.fill()
+        }
+        drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, max, true, t, zRange)
+      } else {
+        drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, 1, true, t, zRange)
       }
-      drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, max, true, t, zRange)
-    } else {
-      drawAxes(ctx, { ML, MB, MT, PW, PH, baseY }, 1, true, t, zRange)
     }
+
+    render()
+    const ro = new ResizeObserver(() => render())
+    ro.observe(canvas)
+    return () => ro.disconnect()
   }, [result, quantum, tCurrent, mode, t, zRange])
 
   return (
     <div className="panel right-panel-bottom">
       <Section title={`${t('stats')} · ${t('histTitle')}`} hint={mode === 'quantum' ? 'histQuantum' : 'hist'}>
-        <canvas ref={canvasRef} width={W} height={H} className="hist-canvas" />
+        <canvas ref={canvasRef} className="hist-canvas" />
         <div className="stats-row">
           <span><Hint id="screenHits" /> {t('screenHits')}: <b>{screenCount.toLocaleString()}</b></span>
           <span><Hint id="absorbed" /> {t('absorbedHits')}: <b style={{ color: '#ff7a8a' }}>{absorbedCount.toLocaleString()}</b></span>

@@ -1,4 +1,5 @@
-import { Canvas } from '@react-three/fiber'
+import { useEffect } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Stars, Environment, Lightformer } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { Beamline } from './Beamline'
@@ -7,12 +8,33 @@ import { Particles } from './Particles'
 import { QuantumField } from './QuantumField'
 import { BellScene } from './BellScene'
 import { useStore } from '../state/store'
+import type { Vector3 } from 'three'
+
+/** per-mode framing: cascade spans the full beamline, bell is centered on the source */
+const CAM: Record<'cascade' | 'bell', { pos: [number, number, number]; tgt: [number, number, number] }> = {
+  cascade: { pos: [-140, -520, 360], tgt: [320, 0, 50] },
+  bell: { pos: [0, -620, 410], tgt: [0, 0, 0] },
+}
+
+function CameraRig({ kind }: { kind: 'cascade' | 'bell' }) {
+  const camera = useThree((s) => s.camera)
+  const controls = useThree((s) => s.controls) as unknown as { target: Vector3; update: () => void } | null
+  useEffect(() => {
+    const { pos, tgt } = CAM[kind]
+    camera.position.set(...pos)
+    if (controls) {
+      controls.target.set(...tgt)
+      controls.update()
+    }
+  }, [kind, camera, controls])
+  return null
+}
 
 export function Experience() {
   const kind = useStore((s) => s.kind)
   return (
     <Canvas
-      camera={{ position: [-60, -320, 230], fov: 40, near: 1, far: 8000 }}
+      camera={{ position: [-140, -520, 360], fov: 40, near: 1, far: 8000 }}
       gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
       dpr={[1, 2]}
       onCreated={({ gl }) => {
@@ -67,11 +89,13 @@ export function Experience() {
           <Beamline />
           <Particles />
           <QuantumField />
-          <OrbitControls makeDefault target={[350, 0, 0]} maxDistance={2600} minDistance={80} />
+          <CameraRig kind="cascade" />
+          <OrbitControls makeDefault target={[320, 0, 50]} maxDistance={2600} minDistance={80} />
         </>
       ) : (
         <>
           <BellScene />
+          <CameraRig kind="bell" />
           <OrbitControls makeDefault target={[0, 0, 0]} maxDistance={2600} minDistance={80} />
         </>
       )}

@@ -156,9 +156,9 @@ export function DetectorScreen() {
       const py = (0.5 - y / Y_SPAN) * H
       const sign = src.signs[k]
       const [r, g, b] = sign === 0 ? [0.65, 0.8, 1] : spinColor(src.thetas[k], sign)
-      ctx.fillStyle = `rgba(${(r * 255) | 0},${(g * 255) | 0},${(b * 255) | 0},0.55)`
+      ctx.fillStyle = `rgba(${(r * 255) | 0},${(g * 255) | 0},${(b * 255) | 0},0.85)`
       ctx.beginPath()
-      ctx.arc(px, py, 1.3, 0, Math.PI * 2)
+      ctx.arc(px, py, 1.5, 0, Math.PI * 2)
       ctx.fill()
       drew = true
     }
@@ -167,12 +167,46 @@ export function DetectorScreen() {
   })
 
   const xU = screenX * M_TO_UNITS
+  const openDetail = useStore((s) => s.setScreenDetailOpen)
+  const setBellStation = useStore((s) => s.setBellDetailStation)
   return (
     <group position={[xU + 4, 0, 0]}>
       {/* glowing screen */}
-      <mesh rotation={[0, -Math.PI / 2, 0]}>
+      <mesh
+        rotation={[0, -Math.PI / 2, 0]}
+        onClick={(e) => {
+          e.stopPropagation()
+          setBellStation(null)
+          openDetail(true)
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          document.body.style.cursor = 'pointer'
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = ''
+        }}
+      >
         <planeGeometry args={[Z_SPAN, Y_SPAN]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
+      </mesh>
+      {/* invisible click slab around the screen (hits from any camera angle) */}
+      <mesh
+        onClick={(e) => {
+          e.stopPropagation()
+          setBellStation(null)
+          openDetail(true)
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          document.body.style.cursor = 'pointer'
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = ''
+        }}
+      >
+        <boxGeometry args={[18, Y_SPAN + 26, Z_SPAN + 26]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       {/* backlit frame */}
       <mesh position={[3, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
@@ -189,6 +223,16 @@ export function DetectorScreen() {
         <meshStandardMaterial color="#52627a" metalness={0.5} roughness={0.35} />
       </mesh>
       <pointLight position={[-30, 0, 0]} color="#3a5aff" intensity={8} distance={120} decay={2} />
+      <spotLight
+        position={[-260, -170, 270]}
+        target-position={[-4, 0, 0]}
+        angle={0.7}
+        penumbra={0.7}
+        intensity={160000}
+        distance={900}
+        decay={2}
+        color="#dfeaff"
+      />
       {kind === 'cascade' && showAnnot && (
         <Annotation position={[0, 0, 72]} title={t('annot.screen')} desc={t('annot.screenDesc')} hintId="hist" />
       )}

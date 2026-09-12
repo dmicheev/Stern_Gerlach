@@ -12,6 +12,7 @@ const POP_W = 350
  */
 export function Hint({ id }: { id: string }) {
   const [open, setOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const iconRef = useRef<HTMLSpanElement>(null)
   const lang = useStore((s) => s.lang)
@@ -19,17 +20,28 @@ export function Hint({ id }: { id: string }) {
 
   useEffect(() => {
     if (!open) return
-    const close = () => setOpen(false)
+    const closeAll = () => {
+      setOpen(false)
+      setPinned(false)
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closeAll()
     }
-    window.addEventListener('scroll', close, true)
+    const onDown = (e: PointerEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('.hint-pop')) return
+      if (iconRef.current?.contains(el)) return
+      closeAll()
+    }
+    if (!pinned) window.addEventListener('scroll', closeAll, true)
     window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onDown)
     return () => {
-      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('scroll', closeAll, true)
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onDown)
     }
-  }, [open])
+  }, [open, pinned])
 
   if (!content) return null
 
@@ -48,26 +60,51 @@ export function Hint({ id }: { id: string }) {
   return (
     <span
       ref={iconRef}
-      className="hint-icon"
+      className={`hint-icon ${pinned ? 'hint-icon-pinned' : ''}`}
       role="button"
       tabIndex={0}
       aria-label={content.title}
+      aria-expanded={open}
       onMouseEnter={() => {
         place()
         setOpen(true)
       }}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => {
+        if (!pinned) setOpen(false)
+      }}
+      onFocus={() => {
+        place()
+        setOpen(true)
+      }}
+      onBlur={() => {
+        if (!pinned) setOpen(false)
+      }}
       onClick={(e) => {
         e.stopPropagation()
         place()
-        setOpen((v) => !v)
+        setPinned((v) => !v)
+        setOpen(true)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          place()
+          setPinned((v) => !v)
+          setOpen(true)
+        }
       }}
     >
       ?
       {open &&
         pos &&
         createPortal(
-          <div className="hint-pop" style={{ left: pos.left, top: pos.top, maxWidth: POP_W }} onMouseLeave={() => setOpen(false)}>
+          <div
+            className="hint-pop"
+            style={{ left: pos.left, top: pos.top, maxWidth: POP_W }}
+            onMouseLeave={() => {
+              if (!pinned) setOpen(false)
+            }}
+          >
             <div className="hint-title">{content.title}</div>
             {content.formula && <div className="hint-formula">{content.formula}</div>}
             {content.body.map((p, i) => (

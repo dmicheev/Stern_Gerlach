@@ -109,28 +109,28 @@ function BellStation({ side, label, color }: StationProps) {
 
   return (
     <group>
-      {/* magnet: rotation.x = live basis angle */}
-      <group ref={magnet} position={[x0 - (side * LX) / 2, 0, 0]}>
-        <mesh position={[LX / 2, 0, 22]}>
+      {/* magnet: centered on x0, rotation.x = live basis angle */}
+      <group ref={magnet} position={[x0, 0, 0]}>
+        <mesh position={[0, 0, 22]}>
           <boxGeometry args={[LX, 24, 26]} />
           <meshStandardMaterial color="#7b8595" metalness={0.55} roughness={0.34} />
         </mesh>
-        <mesh position={[LX / 2, 0, -22]}>
+        <mesh position={[0, 0, -22]}>
           <boxGeometry args={[LX, 30, 26]} />
           <meshStandardMaterial color="#7b8595" metalness={0.55} roughness={0.34} />
         </mesh>
-        <mesh position={[LX / 2, 0, 8.5]}>
+        <mesh position={[0, 0, 8.5]}>
           <boxGeometry args={[LX, 4, 2.5]} />
           <meshStandardMaterial color="#7a4040" metalness={0.7} roughness={0.4} emissive="#331111" />
         </mesh>
-        <mesh position={[LX / 2, 0, -8.5]}>
+        <mesh position={[0, 0, -8.5]}>
           <boxGeometry args={[LX, 16, 2.5]} />
           <meshStandardMaterial color="#40527a" metalness={0.7} roughness={0.4} emissive="#111533" />
         </mesh>
       </group>
 
       {/* QRNG lamp */}
-      <mesh ref={lamp} position={[x0 - (side * LX) / 2, 26, 0]}>
+      <mesh ref={lamp} position={[x0, 26, 0]}>
         <sphereGeometry args={[2.6, 10, 8]} />
         <meshBasicMaterial color={color} transparent opacity={0.4} toneMapped={false} />
       </mesh>
@@ -148,6 +148,24 @@ function BellStation({ side, label, color }: StationProps) {
         <mesh position={[-side * 3, 0, 0]}>
           <boxGeometry args={[2, 50, 8]} />
           <meshStandardMaterial color="#202a3e" metalness={0.6} roughness={0.35} />
+        </mesh>
+        {/* invisible click slab covering the whole detector (plates face the beam, hard to hit) */}
+        <mesh
+          onClick={(e) => {
+            e.stopPropagation()
+            useStore.getState().setBellDetailStation(side)
+            useStore.getState().setScreenDetailOpen(true)
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation()
+            document.body.style.cursor = 'pointer'
+          }}
+          onPointerOut={() => {
+            document.body.style.cursor = ''
+          }}
+        >
+          <boxGeometry args={[18, 64, 64]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
 

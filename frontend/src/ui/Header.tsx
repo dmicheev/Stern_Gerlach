@@ -28,10 +28,18 @@ export function Header() {
 
       <div className="topbar-controls">
         <div className="lang-switch kind-switch">
-          <button className={kind === 'cascade' ? 'active' : ''} onClick={() => setKind('cascade')}>
+          <button
+            className={kind === 'cascade' ? 'active' : ''}
+            aria-pressed={kind === 'cascade'}
+            onClick={() => setKind('cascade')}
+          >
             {t('kindCascade')}
           </button>
-          <button className={kind === 'bell' ? 'active' : ''} onClick={() => setKind('bell')}>
+          <button
+            className={kind === 'bell' ? 'active' : ''}
+            aria-pressed={kind === 'bell'}
+            onClick={() => setKind('bell')}
+          >
             {t('kindBell')}
           </button>
         </div>

@@ -64,9 +64,9 @@ export interface BellResult {
 
 /** scene layout, meters (shared with the 3D scene) */
 export const BELL_LAYOUT = {
-  stationX: 0.33,
+  stationX: 0.21,
   magnetLen: 0.12,
-  detectorX: 0.45,
+  detectorX: 0.31,
   v: 500,
 }
 
