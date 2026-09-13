@@ -464,6 +464,26 @@ pub fn simulate(cfg: &Config) -> Result<SimOutput, String> {
                 }
             }
 
+            // classical blocker: the plate physically cuts the blocked half of the beam
+            if classical {
+                for a in &caches {
+                    if !a.blocked_up && !a.blocked_down {
+                        continue;
+                    }
+                    let x_block = a.x_out + 0.004;
+                    if px < x_block && p_x >= x_block {
+                        let d = (p_y - a.cy) * a.ny + (p_z - a.cz) * a.nz;
+                        if (a.blocked_up && d > 0.0) || (a.blocked_down && d < 0.0) {
+                            is_absorbed = true;
+                            break;
+                        }
+                    }
+                }
+                if is_absorbed {
+                    break;
+                }
+            }
+
             // blocker absorption shortly after magnet exit
             if will_absorb {
                 if let Some(slot) = cur_app {

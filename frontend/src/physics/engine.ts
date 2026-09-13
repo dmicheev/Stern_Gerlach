@@ -174,6 +174,22 @@ export function runSimulation(cfg: SimulationConfig): SimResult {
       // leave the magnet region: force off
       if (curApp && p.x > curApp.cache.xOut + 4 * curApp.cache.fr) curApp = null
 
+      // classical blocker: the plate physically cuts the blocked half of the beam
+      if (classical) {
+        for (const a of caches) {
+          if (!a.blocked) continue
+          const xBlock = a.xOut + 0.004
+          if (px < xBlock && p.x >= xBlock) {
+            const d = (p.y - a.cy) * a.ny + (p.z - a.cz) * a.nz
+            if ((a.blocked === 'up' && d > 0) || (a.blocked === 'down' && d < 0)) {
+              isAbsorbed = true
+              break
+            }
+          }
+        }
+        if (isAbsorbed) break
+      }
+
       // blocker absorption shortly after magnet exit
       if (willAbsorb && curApp) {
         const a = curApp.cache

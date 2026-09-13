@@ -82,6 +82,32 @@ describe('classical mode', () => {
     const std = Math.sqrt(zs.reduce((a, b) => a + b * b, 0) / zs.length)
     expect(std).toBeGreaterThan(0.005)
   })
+
+  it('blocker cuts the blocked half of the classical beam', () => {
+    const app = apparatus({ blockedPort: 'up' })
+    const r = runSimulation(config({ mode: 'classical', apparatuses: [app] }))
+    const plain = runSimulation(config({ mode: 'classical', apparatuses: [apparatus()] }))
+    let absorbed = 0
+    const zs: number[] = []
+    for (let i = 0; i < r.nParticles; i++) {
+      if (r.absorbed[i]) absorbed++
+      else zs.push(r.hitZ[i])
+    }
+    // roughly half of the beam is deflected to the blocked side
+    expect(absorbed / r.nParticles).toBeGreaterThan(0.4)
+    expect(absorbed / r.nParticles).toBeLessThan(0.6)
+    expect(zs.length).toBeGreaterThan(1500)
+    // survivors are shifted down: the upper exit half is gone
+    const mean = zs.reduce((a, b) => a + b, 0) / zs.length
+    expect(mean).toBeLessThan(-0.001)
+    // the top of the landing band is cut off compared to the unblocked run
+    const plainZs: number[] = []
+    for (let i = 0; i < plain.nParticles; i++) plainZs.push(plain.hitZ[i])
+    expect(Math.max(...zs)).toBeLessThan(Math.max(...plainZs) - 0.002)
+    // the band is still continuous (center populated)
+    const near = zs.filter((z) => Math.abs(z) < 0.004).length
+    expect(near / zs.length).toBeGreaterThan(0.05)
+  })
 })
 
 describe('cascade with beam routing', () => {

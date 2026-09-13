@@ -101,18 +101,36 @@ physics-wasm/            Rust-крейт sg-physics → wasm-bindgen → fronten
 
 ## Запуск
 
-Требуется Node 18+ и pnpm.
+Требуется Node.js 18+ и pnpm. Rust не нужен — WASM-движок уже собран
+и лежит в репозитории. **Одна команда** — при первом запуске зависимости
+установятся сами:
 
 ```bash
-pnpm install        # в корне
-pnpm dev            # http://localhost:5173
+pnpm dev        # http://localhost:5173 (аналогично pnpm start)
 ```
 
-WASM-движок уже собран и добавлен в репозиторий (`frontend/public/wasm`). Пересборка после правок Rust:
+Пошаговая инструкция для любой ОС (Windows / macOS / Linux), включая установку
+Node.js и pnpm с нуля, а также ответы на частые вопросы: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+## Публикация в интернете
 
 ```bash
-pnpm build:wasm     # требует cargo + wasm32-unknown-unknown + wasm-pack
+pnpm build      # статическая сборка → frontend/dist (зависимости поставятся сами)
 ```
+
+- **GitHub Pages** — в репозитории настроена автосборка
+  (`.github/workflows/deploy.yml`): Settings → Pages → Source: GitHub Actions
+- **Netlify/Vercel/свой сервер** — просто разместите содержимое `frontend/dist`
+  (подробности и варианты для новичков — в [docs/INSTALL.md](docs/INSTALL.md))
+
+Пересборка WASM после правок Rust — обязательно, иначе в браузере останется
+старая физика:
+
+```bash
+./scripts/build-wasm.sh  # требует rustup-тулчейн + brew install lld + wasm-pack
+```
+
+Подробности и решение проблем сборки: `docs/troubleshooting-wasm.md`.
 
 Без Rust-тулчейна приложение всё равно работает на резервной JS-реализации.
 
