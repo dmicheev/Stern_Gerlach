@@ -1,5 +1,7 @@
 # ⚛ Stern-Gerlach
 
+**[→ Открыть онлайн-демо](https://dmicheev.github.io/Stern_Gerlach/)**
+
 ![Stern-Gerlach](docs/screenshot-main.png)
 
 Интерактивная 3D-эмуляция опыта Штерна-Герлаха и **теста неравенства Белла** (CHSH)
