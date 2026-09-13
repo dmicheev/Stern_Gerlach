@@ -180,15 +180,16 @@ export function StatsPanel() {
         const screenX = useStore.getState().config.screenX
         const tq = Math.min(header.tTotal, tCurrent)
         let max = 1e-9
-        const rows = 96
-        const prof = new Float32Array(rows)
-        for (let r = 0; r < rows; r++) {
-          const zNorm = 1 - (r + 0.5) / rows
-          const zM = (zNorm * zRange) / M_TO_UNITS // evalProfile expects meters
-          const v = evalProfile(q, screenX, tq, zM)
-          prof[r] = v
-          if (v > max) max = v
-        }
+      const rows = 96
+      const prof = new Float32Array(rows)
+      for (let r = 0; r < rows; r++) {
+        // sample over the full symmetric z-range (matches the plotting grid below)
+        const zNorm = 1 - 2 * ((r + 0.5) / rows)
+        const zM = (zNorm * zRange) / M_TO_UNITS // evalProfile expects meters
+        const v = evalProfile(q, screenX, tq, zM)
+        prof[r] = v
+        if (v > max) max = v
+      }
         // |psi|^2 profile along z at the screen column
         ctx.beginPath()
         for (let r = 0; r < rows; r++) {
