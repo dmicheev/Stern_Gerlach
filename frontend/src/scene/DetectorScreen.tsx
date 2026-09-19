@@ -6,9 +6,9 @@ import { M_TO_UNITS } from '../physics/constants'
 import { useTranslation } from 'react-i18next'
 import { spinColor } from './ApparatusModel'
 import { Annotation } from './Annotation'
-import { sampleScreenHits } from '../physics/quantum'
+import { sampleScreenHits, maxAxisExtent } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
-import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
+import { screenFrame, toScreenFrame } from '../physics/beams'
 
 const W = 512
 const H = 256
@@ -39,12 +39,9 @@ export function DetectorScreen() {
   const apparatuses = useStore((s) => s.config.apparatuses)
   const vMean = useStore((s) => s.config.source.vMean)
 
-  // screen plane is oriented along the LAST detector axis (world frame in
-  // quantum mode: its 1D approximation has no transverse y dynamics)
-  const frame = useMemo(
-    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
-    [mode, apparatuses, vMean],
-  )
+  // screen plane is oriented along the LAST detector axis; the quantum model
+  // deflects along n(theta) as well, so the same frame applies
+  const frame = useMemo(() => screenFrame(apparatuses, vMean), [apparatuses, vMean])
 
   const canvas = useMemo(() => {
     const c = document.createElement('canvas')
@@ -66,12 +63,8 @@ export function DetectorScreen() {
   const zRange = useMemo(() => {
     let maxAbs = 0
     if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
-      const f = quantum.header.frameCount - 1
-      for (const b of quantum.branches) {
-        const ext = Math.abs(b.cz[f]) + 4 * b.sz[f]
-        if (ext > maxAbs) maxAbs = ext
-      }
-      return adaptiveZRangeMm(maxAbs * M_TO_UNITS)
+      const ext = maxAxisExtent({ header: quantum.header, branches: quantum.branches }, frame)
+      return adaptiveZRangeMm(ext * M_TO_UNITS)
     }
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { simulateQuantum, evalRho, evalProfile, sampleScreenHits } from '../quantum'
+import { simulateQuantum, evalRho, evalProfile, evalAxisProfile, sampleScreenHits } from '../quantum'
+import { screenFrame, toScreenFrame } from '../beams'
 import type { Apparatus, SimulationConfig } from '../types'
 
 function apparatus(partial: Partial<Apparatus> = {}): Apparatus {
@@ -166,5 +167,53 @@ describe('quantum screen hits', () => {
     const b = sampleScreenHits(q, cfg.screenX, 500, 11)
     expect([...a.zs]).toEqual([...b.zs])
     expect([...a.times]).toEqual([...b.times])
+  })
+})
+
+describe('quantum rotated detector', () => {
+  it('90° detector splits along world Y; screen frame sees symmetric ±s', () => {
+    const app = apparatus({ angleDeg: 90 })
+    const cfg = config({ apparatuses: [app] })
+    const q = simulateQuantum(cfg)
+    const v = cfg.source.vMean
+    const f = screenFrame(cfg.apparatuses, v)
+    expect(f.theta).toBeCloseTo(Math.PI / 2)
+    const fr = q.header.frameCount - 1
+    const tEnd = fr * q.header.timePerFrame
+    // analytic deflection along the apparatus axis at the last frame
+    const a = (9.2740100783e-24 * app.gradient) / 1.7915e-25
+    const tEnt = (app.xStart - 0.05) / v
+    const tExit = (app.xStart + app.length - 0.05) / v
+    const tau = tExit - tEnt
+    const sTheory = a * (0.5 * tau * tau + tau * (tEnd - tExit))
+    const ss = q.branches
+      .map((b) => (b.cy[fr] - f.cy) * f.ny + (b.cz[fr] - f.cz) * f.nz)
+      .sort((x, y) => y - x)
+    expect(ss[0]).toBeCloseTo(sTheory, 3)
+    expect(ss[1]).toBeCloseTo(-sTheory, 3)
+    // world-z centers stay on the beam axis: the split went into Y
+    for (const b of q.branches) expect(Math.abs(b.cz[fr])).toBeLessThan(1e-9)
+  })
+
+  it('screen hits deposit along the rotated axis (sign agrees with frame s)', () => {
+    const app = apparatus({ angleDeg: 90 })
+    const cfg = config({ apparatuses: [app] })
+    const q = simulateQuantum(cfg)
+    const f = screenFrame(cfg.apparatuses, cfg.source.vMean)
+    const hits = sampleScreenHits(q, cfg.screenX, 4000, 5)
+    let agree = 0
+    for (let i = 0; i < 4000; i++) {
+      const { s } = toScreenFrame(f, hits.ys[i], hits.zs[i])
+      if (Math.sign(s) === hits.signs[i]) agree++
+    }
+    expect(agree / 4000).toBeGreaterThan(0.95)
+    // world-z marginal is single-lobe; axis profile is bimodal
+    const tq = cfg.screenX / cfg.source.vMean
+    const axis = Math.max(
+      evalAxisProfile(q, cfg.screenX, tq, f, 0.012),
+      evalAxisProfile(q, cfg.screenX, tq, f, -0.012),
+    )
+    const axisMid = evalAxisProfile(q, cfg.screenX, tq, f, 0)
+    expect(axis).toBeGreaterThan(5 * axisMid)
   })
 })

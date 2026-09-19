@@ -6,8 +6,8 @@ import { Hint } from './Hint'
 import { spinColor } from '../scene/ApparatusModel'
 import { M_TO_UNITS } from '../physics/constants'
 import { adaptiveZRangeMm } from '../physics/scale'
-import { evalProfile } from '../physics/quantum'
-import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
+import { evalAxisProfile, maxAxisExtent } from '../physics/quantum'
+import { screenFrame, toScreenFrame } from '../physics/beams'
 
 const H = 130
 const BINS = 72
@@ -85,13 +85,10 @@ export function StatsPanel() {
   const tCurrent = useStore((s) => s.tCurrent)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // histogram axis follows the LAST detector axis (world frame in quantum mode)
+  // histogram axis follows the LAST detector axis (quantum deflects along it too)
   const apparatuses = useStore((s) => s.config.apparatuses)
   const vMean = useStore((s) => s.config.source.vMean)
-  const frame = useMemo(
-    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
-    [mode, apparatuses, vMean],
-  )
+  const frame = useMemo(() => screenFrame(apparatuses, vMean), [apparatuses, vMean])
 
   const branches = useMemo(() => {
     if (!result || mode === 'classical' || mode === 'quantum') return []
@@ -136,14 +133,8 @@ export function StatsPanel() {
   const zRange = useMemo(() => {
     let maxAbs = 0
     if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
-      const n = quantum.branches.length
-      const f = quantum.header.frameCount - 1
-      for (const b of quantum.branches) {
-        const ext = Math.abs(b.cz[f]) + 4 * b.sz[f]
-        if (ext > maxAbs) maxAbs = ext
-      }
-      void n
-      return adaptiveZRangeMm(maxAbs * M_TO_UNITS)
+      const ext = maxAxisExtent({ header: quantum.header, branches: quantum.branches }, frame)
+      return adaptiveZRangeMm(ext * M_TO_UNITS)
     }
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {
@@ -195,8 +186,8 @@ export function StatsPanel() {
       for (let r = 0; r < rows; r++) {
         // sample over the full symmetric z-range (matches the plotting grid below)
         const zNorm = 1 - 2 * ((r + 0.5) / rows)
-        const zM = (zNorm * zRange) / M_TO_UNITS // evalProfile expects meters
-        const v = evalProfile(q, screenX, tq, zM)
+        const zM = (zNorm * zRange) / M_TO_UNITS // evalAxisProfile expects meters
+        const v = evalAxisProfile(q, screenX, tq, frame, zM)
         prof[r] = v
         if (v > max) max = v
       }

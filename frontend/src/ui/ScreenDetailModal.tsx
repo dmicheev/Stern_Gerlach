@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useStore } from '../state/store'
 import { M_TO_UNITS } from '../physics/constants'
 import { spinColor } from '../scene/ApparatusModel'
-import { sampleScreenHits } from '../physics/quantum'
+import { sampleScreenHits, maxAxisExtent } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
-import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
+import { screenFrame, toScreenFrame } from '../physics/beams'
 import { hintsContent } from '../i18n/hints'
 
 /** unified hit record for both engines (meters) */
@@ -66,13 +66,10 @@ export function ScreenDetailModal() {
   const particleCount = useStore((s) => s.config.particleCount)
   const screenX = useStore((s) => s.config.screenX)
   const tCurrent = useStore((s) => s.tCurrent)
-  // plots are analyzed in the LAST detector frame (world frame in quantum mode)
+  // plots are analyzed in the LAST detector frame (quantum deflects along it too)
   const apparatuses = useStore((s) => s.config.apparatuses)
   const vMean = useStore((s) => s.config.source.vMean)
-  const frame = useMemo(
-    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
-    [mode, apparatuses, vMean],
-  )
+  const frame = useMemo(() => screenFrame(apparatuses, vMean), [apparatuses, vMean])
   const scatterRef = useRef<HTMLCanvasElement>(null)
   const histRef = useRef<HTMLCanvasElement>(null)
   const bellScatterRef = useRef<HTMLCanvasElement>(null)
@@ -122,12 +119,8 @@ export function ScreenDetailModal() {
   const zRange = useMemo(() => {
     let maxAbs = 0
     if (mode === 'quantum' && quantum?.header && quantum.branches.length) {
-      const f = quantum.header.frameCount - 1
-      for (const b of quantum.branches) {
-        const ext = Math.abs(b.cz[f]) + 4 * b.sz[f]
-        if (ext > maxAbs) maxAbs = ext
-      }
-      return adaptiveZRangeMm(maxAbs * M_TO_UNITS)
+      const ext = maxAxisExtent({ header: quantum.header, branches: quantum.branches }, frame)
+      return adaptiveZRangeMm(ext * M_TO_UNITS)
     }
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {
