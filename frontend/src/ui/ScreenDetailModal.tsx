@@ -5,6 +5,7 @@ import { M_TO_UNITS } from '../physics/constants'
 import { spinColor } from '../scene/ApparatusModel'
 import { sampleScreenHits } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
+import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
 import { hintsContent } from '../i18n/hints'
 
 /** unified hit record for both engines (meters) */
@@ -65,6 +66,13 @@ export function ScreenDetailModal() {
   const particleCount = useStore((s) => s.config.particleCount)
   const screenX = useStore((s) => s.config.screenX)
   const tCurrent = useStore((s) => s.tCurrent)
+  // plots are analyzed in the LAST detector frame (world frame in quantum mode)
+  const apparatuses = useStore((s) => s.config.apparatuses)
+  const vMean = useStore((s) => s.config.source.vMean)
+  const frame = useMemo(
+    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
+    [mode, apparatuses, vMean],
+  )
   const scatterRef = useRef<HTMLCanvasElement>(null)
   const histRef = useRef<HTMLCanvasElement>(null)
   const bellScatterRef = useRef<HTMLCanvasElement>(null)
@@ -124,12 +132,13 @@ export function ScreenDetailModal() {
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {
         if (result.absorbed[i]) continue
-        const v = Math.abs(result.hitZ[i]) * M_TO_UNITS
+        const { s } = toScreenFrame(frame, result.hitY[i], result.hitZ[i])
+        const v = Math.abs(s) * M_TO_UNITS
         if (v > maxAbs) maxAbs = v
       }
     }
     return adaptiveZRangeMm(maxAbs)
-  }, [mode, result, quantum])
+  }, [mode, result, quantum, frame])
 
   const liveCount = hits ? countUpTo(hits.times, tCurrent) : 0
 
@@ -186,8 +195,9 @@ export function ScreenDetailModal() {
       const n = countUpTo(hits.times, tCurrent)
       const classical = mode === 'classical'
       for (let k = 0; k < n; k++) {
-        const zmm = hits.zs[k] * M_TO_UNITS
-        const ymm = hits.ys[k] * M_TO_UNITS
+        const { s, t } = toScreenFrame(frame, hits.ys[k], hits.zs[k])
+        const zmm = s * M_TO_UNITS
+        const ymm = t * M_TO_UNITS
         if (Math.abs(zmm) > zRange || Math.abs(ymm) > Y_HALF) continue
         const sign = hits.signs[k]
         const [r, g, b] = classical || sign === 0 ? [0.65, 0.8, 1] : spinColor(hits.thetas[k], sign)
@@ -201,7 +211,7 @@ export function ScreenDetailModal() {
     const ro = new ResizeObserver(render)
     ro.observe(canvas)
     return () => ro.disconnect()
-  }, [open, hits, tCurrent, zRange, mode, t])
+  }, [open, hits, tCurrent, zRange, mode, t, frame])
 
   // stacked histogram N(z), same grouping/colors as the side panel
   useEffect(() => {
@@ -232,7 +242,8 @@ export function ScreenDetailModal() {
       interface Group { theta: number; sign: number; bins: number[] }
       const groups = new Map<string, Group>()
       for (let k = 0; k < n; k++) {
-        const zmm = hits.zs[k] * M_TO_UNITS
+        const { s } = toScreenFrame(frame, hits.ys[k], hits.zs[k])
+        const zmm = s * M_TO_UNITS
         const bin = Math.floor(((zmm + zRange) / (2 * zRange)) * BINS)
         if (bin < 0 || bin >= BINS) continue
         const sign = hits.signs[k]
@@ -302,7 +313,7 @@ export function ScreenDetailModal() {
     const ro = new ResizeObserver(render)
     ro.observe(canvas)
     return () => ro.disconnect()
-  }, [open, hits, tCurrent, zRange, mode, t])
+  }, [open, hits, tCurrent, zRange, mode, t, frame])
 
   // ---- bell mode: per-station detections by port and basis ----
   const bellSide: -1 | 1 = kind === 'bell' ? (bellStation ?? -1) : -1

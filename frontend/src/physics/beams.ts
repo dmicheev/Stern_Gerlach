@@ -121,7 +121,39 @@ export function branchPoint(
   return { y: node.cy + d * ny, z: node.cz + d * nz }
 }
 
-/** polyline segments describing every beam path from source to the screen */
+/**
+ * Detector screen frame: axis & center of the most downstream apparatus.
+ * The splitting at the screen runs along that apparatus axis n(theta), so the
+ * screen plane and the histogram are analyzed in this frame (world frame when
+ * there are no apparatuses).
+ */
+export interface ScreenFrame {
+  theta: number
+  ny: number
+  nz: number
+  /** transverse center of the last apparatus (meters, world Y-Z) */
+  cy: number
+  cz: number
+}
+
+export const WORLD_FRAME: ScreenFrame = { theta: 0, ny: 0, nz: 1, cy: 0, cz: 0 }
+
+export function screenFrame(apparatuses: Apparatus[], vMean: number): ScreenFrame {
+  if (!apparatuses.length) return WORLD_FRAME
+  const tree = buildBeamTree(apparatuses, vMean)
+  let last = tree.nodes[0]
+  for (const n of tree.nodes) if (n.app.xStart > last.app.xStart) last = n
+  const theta = (last.app.angleDeg * Math.PI) / 180
+  return { theta, ny: -Math.sin(theta), nz: Math.cos(theta), cy: last.cy, cz: last.cz }
+}
+
+/** world hit (y, z) -> screen-frame coords: s along the axis, t across it (meters) */
+export function toScreenFrame(f: ScreenFrame, y: number, z: number): { s: number; t: number } {
+  const dy = y - f.cy
+  const dz = z - f.cz
+  return { s: dy * f.ny + dz * f.nz, t: dy * f.nz - dz * f.ny }
+}
+
 export interface BeamSegment {
   from: [number, number, number]
   to: [number, number, number]

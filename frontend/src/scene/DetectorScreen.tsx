@@ -8,6 +8,7 @@ import { spinColor } from './ApparatusModel'
 import { Annotation } from './Annotation'
 import { sampleScreenHits } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
+import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
 
 const W = 512
 const H = 256
@@ -35,6 +36,15 @@ export function DetectorScreen() {
   const quantum = useStore((s) => s.quantum)
   const qHeader = quantum?.header ?? null
   const qBranches = quantum?.branches ?? null
+  const apparatuses = useStore((s) => s.config.apparatuses)
+  const vMean = useStore((s) => s.config.source.vMean)
+
+  // screen plane is oriented along the LAST detector axis (world frame in
+  // quantum mode: its 1D approximation has no transverse y dynamics)
+  const frame = useMemo(
+    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
+    [mode, apparatuses, vMean],
+  )
 
   const canvas = useMemo(() => {
     const c = document.createElement('canvas')
@@ -66,12 +76,13 @@ export function DetectorScreen() {
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {
         if (result.absorbed[i]) continue
-        const v = Math.abs(result.hitZ[i]) * M_TO_UNITS
+        const { s } = toScreenFrame(frame, result.hitY[i], result.hitZ[i])
+        const v = Math.abs(s) * M_TO_UNITS
         if (v > maxAbs) maxAbs = v
       }
     }
     return adaptiveZRangeMm(maxAbs)
-  }, [mode, result, quantum])
+  }, [mode, result, quantum, frame])
   const Z_SPAN = zRange * 2
 
   const clear = () => {
@@ -149,8 +160,9 @@ export function DetectorScreen() {
     }
     let drew = false
     for (let k = lastDrawn.current; k < lo; k++) {
-      const z = src.zs[k] * M_TO_UNITS
-      const y = src.ys[k] * M_TO_UNITS
+      const { s, t } = toScreenFrame(frame, src.ys[k], src.zs[k])
+      const z = s * M_TO_UNITS
+      const y = t * M_TO_UNITS
       if (Math.abs(z) > Z_SPAN / 2 || Math.abs(y) > Y_SPAN / 2) continue
       const px = (z / Z_SPAN + 0.5) * W
       const py = (0.5 - y / Y_SPAN) * H
@@ -170,7 +182,7 @@ export function DetectorScreen() {
   const openDetail = useStore((s) => s.setScreenDetailOpen)
   const setBellStation = useStore((s) => s.setBellDetailStation)
   return (
-    <group position={[xU + 4, 0, 0]}>
+    <group position={[xU + 4, frame.cy * M_TO_UNITS, frame.cz * M_TO_UNITS]} rotation={[frame.theta, 0, 0]}>
       {/* glowing screen */}
       <mesh
         rotation={[0, -Math.PI / 2, 0]}

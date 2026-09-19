@@ -7,6 +7,7 @@ import { spinColor } from '../scene/ApparatusModel'
 import { M_TO_UNITS } from '../physics/constants'
 import { adaptiveZRangeMm } from '../physics/scale'
 import { evalProfile } from '../physics/quantum'
+import { screenFrame, toScreenFrame, WORLD_FRAME } from '../physics/beams'
 
 const H = 130
 const BINS = 72
@@ -84,6 +85,14 @@ export function StatsPanel() {
   const tCurrent = useStore((s) => s.tCurrent)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  // histogram axis follows the LAST detector axis (world frame in quantum mode)
+  const apparatuses = useStore((s) => s.config.apparatuses)
+  const vMean = useStore((s) => s.config.source.vMean)
+  const frame = useMemo(
+    () => (mode === 'quantum' ? WORLD_FRAME : screenFrame(apparatuses, vMean)),
+    [mode, apparatuses, vMean],
+  )
+
   const branches = useMemo(() => {
     if (!result || mode === 'classical' || mode === 'quantum') return []
     const map = new Map<string, { theta: number; sign: number; hist: string; count: number }>()
@@ -139,12 +148,13 @@ export function StatsPanel() {
     if (result) {
       for (let i = 0; i < result.nParticles; i++) {
         if (result.absorbed[i]) continue
-        const v = Math.abs(result.hitZ[i]) * M_TO_UNITS
+        const { s } = toScreenFrame(frame, result.hitY[i], result.hitZ[i])
+        const v = Math.abs(s) * M_TO_UNITS
         if (v > maxAbs) maxAbs = v
       }
     }
     return adaptiveZRangeMm(maxAbs)
-  }, [mode, result, quantum])
+  }, [mode, result, quantum, frame])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -210,7 +220,8 @@ export function StatsPanel() {
         const groups = new Map<string, Group>()
         for (let i = 0; i < result.nParticles; i++) {
           if (result.absorbed[i] || result.hitTime[i] > tCurrent) continue
-          const zmm = result.hitZ[i] * M_TO_UNITS
+          const { s } = toScreenFrame(frame, result.hitY[i], result.hitZ[i])
+          const zmm = s * M_TO_UNITS
           const bin = Math.floor(((zmm + zRange) / (2 * zRange)) * BINS)
           if (bin < 0 || bin >= BINS) continue
           const theta = result.spinTheta[i]
@@ -264,7 +275,7 @@ export function StatsPanel() {
     const ro = new ResizeObserver(() => render())
     ro.observe(canvas)
     return () => ro.disconnect()
-  }, [result, quantum, tCurrent, mode, t, zRange])
+  }, [result, quantum, tCurrent, mode, t, zRange, frame])
 
   return (
     <div className="panel right-panel-bottom">
