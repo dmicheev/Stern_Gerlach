@@ -18,8 +18,6 @@ interface Hits {
 }
 
 const BINS = 64
-/** screen height in mm (same as the 3D screen plane) */
-const Y_HALF = 20
 
 function cssColor(r: number, g: number, b: number, a = 1) {
   return `rgba(${(r * 255) | 0},${(g * 255) | 0},${(b * 255) | 0},${a})`
@@ -144,7 +142,9 @@ export function ScreenDetailModal() {
       if (!hits) return
       const dpr = window.devicePixelRatio || 1
       const cw = Math.max(120, canvas.clientWidth || 460)
-      const H = Math.max(170, Math.min(430, Math.round((cw * (2 * Y_HALF)) / (2 * zRange))))
+      // square screen plane: y half-span equals the adaptive z half-range
+      const yHalf = zRange
+      const H = Math.max(170, Math.min(430, Math.round((cw * (2 * yHalf)) / (2 * zRange))))
       canvas.style.height = `${H}px`
       canvas.width = Math.round(cw * dpr)
       canvas.height = Math.round(H * dpr)
@@ -156,7 +156,7 @@ export function ScreenDetailModal() {
       const PW = cw - ML - MR
       const PH = H - MB - MT
       const xOf = (zmm: number) => ML + ((zmm + zRange) / (2 * zRange)) * PW
-      const yOf = (ymm: number) => MT + ((Y_HALF - ymm) / (2 * Y_HALF)) * PH
+      const yOf = (ymm: number) => MT + ((yHalf - ymm) / (2 * yHalf)) * PH
 
       ctx.fillStyle = '#0a1424'
       ctx.fillRect(0, 0, cw, H)
@@ -178,7 +178,7 @@ export function ScreenDetailModal() {
       ctx.strokeStyle = 'rgba(120,160,220,0.3)'
       ctx.beginPath(); ctx.moveTo(ML, yOf(0)); ctx.lineTo(ML + PW, yOf(0)); ctx.stroke()
       ctx.textAlign = 'right'
-      for (const y of [-Y_HALF, 0, Y_HALF]) {
+      for (const y of [-yHalf, -yHalf / 2, 0, yHalf / 2, yHalf]) {
         ctx.beginPath(); ctx.moveTo(ML - 3, yOf(y)); ctx.lineTo(ML, yOf(y)); ctx.stroke()
         ctx.fillText(String(y), ML - 5, yOf(y) + 3)
       }
@@ -191,7 +191,7 @@ export function ScreenDetailModal() {
         const { s, t } = toScreenFrame(frame, hits.ys[k], hits.zs[k])
         const zmm = s * M_TO_UNITS
         const ymm = t * M_TO_UNITS
-        if (Math.abs(zmm) > zRange || Math.abs(ymm) > Y_HALF) continue
+        if (Math.abs(zmm) > zRange || Math.abs(ymm) > yHalf) continue
         const sign = hits.signs[k]
         const [r, g, b] = classical || sign === 0 ? [0.65, 0.8, 1] : spinColor(hits.thetas[k], sign)
         ctx.fillStyle = cssColor(r, g, b, 0.42)

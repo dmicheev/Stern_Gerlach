@@ -8,9 +8,9 @@ describe('adaptiveZRangeMm', () => {
     expect(adaptiveZRangeMm(74)).toBe(Z_RANGE_MIN) // 74*1.08 = 79.9 -> floor 80
   })
 
-  it('quantizes upward in 20 mm steps with 8% headroom', () => {
-    expect(adaptiveZRangeMm(75)).toBe(100) // 81 -> 100
-    expect(adaptiveZRangeMm(100)).toBe(120) // 108 -> 120
+  it('quantizes upward in 20 mm steps with 8% headroom (above the minimum)', () => {
+    expect(adaptiveZRangeMm(75)).toBe(Z_RANGE_MIN) // 81 -> clamped by the min
+    expect(adaptiveZRangeMm(100)).toBe(Z_RANGE_MIN) // 108 -> clamped by the min
     expect(adaptiveZRangeMm(160)).toBe(180)
     expect(adaptiveZRangeMm(175)).toBe(200) // 189 -> 200
   })

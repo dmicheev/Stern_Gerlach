@@ -11,9 +11,7 @@ import { adaptiveZRangeMm } from '../physics/scale'
 import { screenFrame, toScreenFrame } from '../physics/beams'
 
 const W = 512
-const H = 256
-/** screen spans y in [-20,20] mm; z span is adaptive per run */
-const Y_SPAN = 40
+const H = 512
 
 /** unified incremental hit source (cascade trajectories or quantum sampling) */
 interface HitSource {
@@ -77,6 +75,8 @@ export function DetectorScreen() {
     return adaptiveZRangeMm(maxAbs)
   }, [mode, result, quantum, frame])
   const Z_SPAN = zRange * 2
+  /** square screen: height equals the (adaptive) width */
+  const Y_SPAN = Z_SPAN
 
   const clear = () => {
     const ctx = canvas.getContext('2d')!
@@ -87,9 +87,7 @@ export function DetectorScreen() {
     for (let i = 1; i < 8; i++) {
       const x = (i * W) / 8
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
-    }
-    for (let i = 1; i < 4; i++) {
-      const y = (i * H) / 4
+      const y = (i * H) / 8
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
     }
     texture.needsUpdate = true
@@ -239,7 +237,7 @@ export function DetectorScreen() {
         color="#dfeaff"
       />
       {kind === 'cascade' && showAnnot && (
-        <Annotation position={[0, 0, 72]} title={t('annot.screen')} desc={t('annot.screenDesc')} hintId="hist" />
+        <Annotation position={[0, 0, Z_SPAN / 2 + 18]} title={t('annot.screen')} desc={t('annot.screenDesc')} hintId="hist" />
       )}
     </group>
   )
