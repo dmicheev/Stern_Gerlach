@@ -70,6 +70,7 @@ const ru: Record<string, HintContent> = {
     body: [
       'Ожидание «старой» (до-1922) физики: магнитный момент атома может быть ориентирован произвольно и непрерывно.',
       'Сила F = ∇(μ·B) отклоняет каждый атом пропорционально проекции его μ на ось магнита. Так как ориентации случайны и равномерны, на экране возникает <b>сплошная полоса</b> — непрерывное распределение отклонений.',
+      'Как считается простыми словами: атом — шарик со «стрелкой» μ, которая торчит в случайную сторону и не меняется в полёте. Никакого кубика: каждый атом отклоняется ровно на «свою» величину, а разброс стрелок по всем направлениям и даёт полосу.',
       'Эксперимент Штерна–Герлаха (1922) опроверг это: на экране оказались <b>две чёткие линии</b>. Пространственное квантование подтвердил Пипс–Тейлор (1927) на атомах водорода.',
     ],
   },
@@ -80,6 +81,7 @@ const ru: Record<string, HintContent> = {
       'Спин электрона квантован: проекция на любую ось n(θ) принимает ровно два значения m_s = ±½. Магнитный момент атома Ag (один неспаренный s-электрон): μ = −g_s μ_B S/ħ, |μ| = μ_B.',
       'Сила в магните: F = ±μ_B·(∂B/∂z) — ровно два возможных отклонения, поэтому пучок делится пополам (два пятна).',
       'На входе каждого следующего магнита спин «коллапсирует» на его ось с вероятностями cos²(θ/2) — это правило Борна для проекции спина-½. Так возникает каскадная арифметика ветвей (см. подсказку к таблице ветвей).',
+      'Как считается простыми словами: «шарики с кубиком». Атом всегда имеет конкретное положение и скорость, но на входе в магнит бросается «квантовая монетка» (P(↑) = (1 + s·n)/2), спин прилипает к ±n — и дальше обычная классическая траектория с силой ±μ_B·G. Экран — накопление тысяч таких розыгрышей (Монте-Карло).',
       '«Полуклассическая» — потому что траектории считаются классически (нулевая механика), а измерение спина — по квантовым правилам.',
     ],
   },
@@ -88,6 +90,7 @@ const ru: Record<string, HintContent> = {
     formula: 'ψ(x,z,t) = Σ_b c_b · N_x(x)·N_z(z − z_b(t)),  |c_b|² = cos²(Δθ/2)…',
     body: [
       'Пучок — это волновой пакет. В магните он не «делится как струя», а расщепляется на <b>суперпозицию</b> двух гауссовых пакетов с весами |c_b|² (правило Борна).',
+      'Как считается простыми словами: «размазанная волна, которая делится, а не выбирает». Отдельных атомов нет — весь пучок один пакет ψ. Магнит не бросает монетку: пакет делится на две ветви, и обе живут одновременно (атом «проходит через оба порта»). Блокиратор выжигает целую ветвь, попадания на экран сэмплируются из |ψ|². При большом N гистограмма полуклассики сходится к этому же профилю — вероятность одна, «онтология» разная.',
       'Центры пакетов движутся по классическим траекториям (теорема Эренфеста: d²⟨z⟩/dt² = ⟨F⟩), а огибающие расплываются: σ(t) = σ₀√(1 + (ħt/2mσ₀²)²). Для тяжёлых атомов Ag расплывание ничтожно (~10⁻³ от ширины) — вся ширина пятен определяется апертурой и разбросом скоростей.',
       'Что приближено: это аналитическая суперпозиция, а не численное решение уравнения Паули iħ∂ψ/∂t = [−ħ²∇²/2m − μ·B]ψ. Отличия видны только в деталях дифракции на щели и в структуре фрейн-полей у краёв магнита.',
     ],
@@ -397,6 +400,7 @@ const en: Record<string, HintContent> = {
     body: [
       'Pre-1922 expectation: the atomic magnetic moment can point anywhere continuously.',
       'F = ∇(μ·B) deflects each atom proportionally to the projection of μ onto the magnet axis; random orientations smear into a <b>continuous band</b>.',
+      'In plain words: the atom is a ball with a μ arrow pointing in a random direction, fixed for the whole flight. No dice — each atom deflects by exactly “its own” amount, and the uniform spread of arrow orientations produces the band.',
       'Stern and Gerlach (1922) saw <b>two distinct lines</b> instead; Phipps and Taylor (1927) confirmed spatial quantization with hydrogen.',
     ],
   },
@@ -407,6 +411,7 @@ const en: Record<string, HintContent> = {
       'Spin is quantized: projection on any axis n(θ) takes exactly two values m_s = ±½; for Ag (one unpaired s-electron) |μ| = μ_B.',
       'Force in the magnet: F = ±μ_B·(∂B/∂z) — exactly two deflections, hence two spots.',
       'At each next magnet the spin projects onto its axis with Born probabilities cos²(θ/2) — this generates the whole cascade arithmetic.',
+      'In plain words: “balls with a die”. The atom always has a definite position and velocity, but at the magnet entrance a quantum coin is tossed (P(↑) = (1 + s·n)/2), the spin snaps to ±n — and from there it is an ordinary classical trajectory under ±μ_B·G. The screen picture accumulates thousands of such Monte-Carlo runs.',
       '“Semiclassical” because trajectories are classical mechanics while spin measurement follows quantum rules.',
     ],
   },
@@ -415,6 +420,7 @@ const en: Record<string, HintContent> = {
     formula: 'ψ(x,z,t) = Σ_b c_b · N_x(x)·N_z(z − z_b(t)),  |c_b|² = cos²(Δθ/2)…',
     body: [
       'The beam is a wavepacket. In the magnet it does not “split like a jet” — it becomes a <b>superposition</b> of two gaussian branches with weights |c_b|².',
+      'In plain words: “a smeared wave that splits rather than chooses”. There are no individual atoms — the whole beam is one packet ψ. The magnet tosses no coin: the packet splits into two branches and both live at once (the atom “goes through both ports”). A blocker burns away a whole branch; screen hits are sampled from |ψ|². At large N the semiclassical histogram converges to this same profile — same probabilities, different ontology.',
       'Branch centers follow classical trajectories (Ehrenfest theorem); envelopes spread as σ(t) = σ₀√(1+(ħt/2mσ₀²)²) — negligible for heavy Ag atoms.',
       'Honest approximation: this is an analytic superposition, not a numerical solution of the Pauli equation iħ∂ψ/∂t = [−ħ²∇²/2m − μ·B]ψ; the differences appear only in slit diffraction detail and fringe-field structure.',
     ],
