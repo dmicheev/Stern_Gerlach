@@ -1,18 +1,34 @@
-import { AG_MASS, MU_B } from './constants'
+import { AG_MASS, HBAR, MU_B } from './constants'
 import { Pcg32 } from './rng'
 import type { ScreenFrame } from './beams'
 import type { SimulationConfig } from './types'
 
 /**
- * Client-side quantum mode: analytic superposition of Gaussian wavepackets.
+ * Client-side quantum mode: analytic wavepacket approximation
+ * ("Pauli-inspired" Gaussian branch model — NOT a numerical solution of the
+ * Pauli equation).
  *
  * The packet starts as a single Gaussian and splits at each apparatus into two
  * branches with weights cos²(θ_rel/2) / sin²(θ_rel/2) (θ_rel = angle between the
  * incoming spin axis and the apparatus axis). Branch centers follow Ehrenfest
  * trajectories in the full transverse plane: deflection along the apparatus
- * axis n(theta) = (-sin θ, cos θ), like the semiclassical kinematics. Each
- * branch carries a dispersive Gaussian envelope. A blocked port removes the
- * corresponding branch.
+ * axis n(theta) = (-sin θ, cos θ), like the semiclassical kinematics. A blocked
+ * port removes the corresponding branch.
+ *
+ * Branch envelopes are free-particle dispersive Gaussians whose variance
+ * combines three separate contributions (added in quadrature):
+ *   σ²(t) = σ0²               — initial packet size (slit/aperture)
+ *        + (σv·t)²            — classical ensemble spread (thermal σv and
+ *                               source divergence; dominates for heavy Ag)
+ *        + (ħt / 2mσ0)²       — intrinsic quantum dispersion of a free packet
+ * The quantum term matches σ(t) = σ0·√(1 + (ħt/2mσ0²)²) of the free Schrödinger
+ * evolution; for silver atoms it is nanometers over flight times of ~1 ms and
+ * therefore negligible next to the classical terms — that hierarchy is a real
+ * physical fact, not a bug, and is reported as such.
+ *
+ * Branches carry NO relative phase and are summed through their densities
+ * (ρ = Σ wᵢ·|ψᵢ|²), so interference terms are absent by construction; the
+ * model demonstrates superposition and projection, not coherence physics.
  *
  * Frames are evaluated lazily from the branch descriptors — only O(branches)
  * numbers are stored, so any time can be rendered cheaply.
@@ -51,18 +67,28 @@ export interface QuantumHeader {
 export interface QuantumResult {
   header: QuantumHeader
   branches: QuantumBranch[]
+  /** total probability mass dropped by the branch-weight cutoff (0 for shallow cascades) */
+  discardedWeight: number
 }
 
 const FRAMES = 200
 /** packet emanates from the slit at x = PACKET_X0 (m) */
 const PACKET_X0 = 0.05
+/** branches lighter than this are pruned; the lost mass is reported in discardedWeight */
+const MIN_BRANCH_WEIGHT = 1e-10
+
+/** variance of a free dispersive Gaussian: σ0² + (σv·t)² + (ħt/2mσ0)² */
+function widthAt(sigma0: number, sigmaV: number, t: number): number {
+  const vQuantum = HBAR / (2 * AG_MASS * sigma0) // effective velocity spread from quantum dispersion
+  return Math.sqrt(sigma0 * sigma0 + (sigmaV * t) ** 2 + (vQuantum * t) ** 2)
+}
 
 export function simulateQuantum(cfg: SimulationConfig): QuantumResult {
   const v = cfg.source.vMean
   const sigmaVx = cfg.source.vSigma
   const sigmaVz = cfg.source.divergence * v
   const sigmaVy = sigmaVz // transverse beam is round (aperture/divergence shared)
-  const sigmaX0 = 0.01 // 10 cm packet along the beam (oven has no x-selection)
+  const sigmaX0 = 0.01 // 1 cm packet along the beam (oven has no x-selection)
   const sigmaZ0 = Math.max(cfg.source.aperture * 0.5, 2e-4)
   const sigmaY0 = sigmaZ0
 
@@ -90,6 +116,8 @@ export function simulateQuantum(cfg: SimulationConfig): QuantumResult {
   }
 
   const accelOf = (gradient: number) => (MU_B * gradient) / AG_MASS
+
+  let discardedWeight = 0
 
   /** branch center at time t: accel inside the magnet, drift after exit */
   const posAt = (b: Live, t: number): { y: number; z: number } => {
@@ -153,9 +181,14 @@ export function simulateQuantum(cfg: SimulationConfig): QuantumResult {
       const vE = velAt(b, tEnt)
       for (const sign of [1, -1] as const) {
         const w = b.weight * (sign > 0 ? pUp : pDown)
-        if (w < 1e-4) continue
+        // blocked ports remove the branch entirely (projection, not a loss);
+        // only the weight cutoff below is a numerical loss, tracked explicitly
         if (app.blockedPort === 'up' && sign > 0) continue
         if (app.blockedPort === 'down' && sign < 0) continue
+        if (w < MIN_BRANCH_WEIGHT) {
+          discardedWeight += w
+          continue
+        }
         next.push({
           weight: w,
           theta: thetaApp,
@@ -194,10 +227,10 @@ export function simulateQuantum(cfg: SimulationConfig): QuantumResult {
       const p = posAt(b, t)
       cy[f] = p.y
       cz[f] = p.z
-      // dispersive widths (momentum spread dominated for Ag; free-particle form)
-      sx[f] = Math.sqrt(sigmaX0 * sigmaX0 + (sigmaVx * t) ** 2)
-      sy[f] = Math.sqrt(sigmaY0 * sigmaY0 + (sigmaVy * t) ** 2)
-      sz[f] = Math.sqrt(sigmaZ0 * sigmaZ0 + (sigmaVz * t) ** 2)
+      // dispersive widths: initial size + classical spread + quantum dispersion
+      sx[f] = widthAt(sigmaX0, sigmaVx, t)
+      sy[f] = widthAt(sigmaY0, sigmaVy, t)
+      sz[f] = widthAt(sigmaZ0, sigmaVz, t)
     }
     return { weight: b.weight, spinTheta: b.theta, spinSign: b.sign, cx, cy, cz, sx, sy, sz }
   })
@@ -215,12 +248,16 @@ export function simulateQuantum(cfg: SimulationConfig): QuantumResult {
       rows: 128,
     },
     branches,
+    discardedWeight,
   }
 }
 
+/** subset of QuantumResult needed to evaluate the packet (frames only) */
+export type QuantumEnvelope = Pick<QuantumResult, 'header' | 'branches'>
+
 /** Evaluate normalized rho(x, z, t) and spin asymmetry at time t (SI units). */
 export function evalRho(
-  q: QuantumResult,
+  q: QuantumEnvelope,
   x: number,
   z: number,
   t: number,
@@ -250,7 +287,7 @@ export function evalRho(
 }
 
 /** Marginal z-profile at a given x (for the detector histogram). */
-export function evalProfile(q: QuantumResult, x: number, t: number, z: number): number {
+export function evalProfile(q: QuantumEnvelope, x: number, t: number, z: number): number {
   const { branches, header } = q
   const f = Math.min(header.frameCount - 1.001, Math.max(0, t / header.timePerFrame))
   const i0 = Math.floor(f)
@@ -274,7 +311,7 @@ export function evalProfile(q: QuantumResult, x: number, t: number, z: number): 
  * diag(sy², sz²), so the s-marginal is Gaussian with variance (ny·sy)² + (nz·sz)².
  */
 export function evalAxisProfile(
-  q: QuantumResult,
+  q: QuantumEnvelope,
   x: number,
   t: number,
   f: ScreenFrame,
@@ -302,7 +339,7 @@ export function evalAxisProfile(
 }
 
 /** max |center| + 4σ extent of the branches projected on the screen-frame axis (meters) */
-export function maxAxisExtent(q: QuantumResult, f: ScreenFrame): number {
+export function maxAxisExtent(q: QuantumEnvelope, f: ScreenFrame): number {
   const fr = q.header.frameCount - 1
   let m = 0
   for (const b of q.branches) {
@@ -336,7 +373,7 @@ interface BranchState {
   sz: number
 }
 
-function branchStatesAt(q: QuantumResult, t: number): BranchState[] {
+function branchStatesAt(q: QuantumEnvelope, t: number): BranchState[] {
   const { branches, header } = q
   const f = Math.min(header.frameCount - 1.001, Math.max(0, t / header.timePerFrame))
   const i0 = Math.floor(f)
@@ -353,12 +390,15 @@ function branchStatesAt(q: QuantumResult, t: number): BranchState[] {
 }
 
 /**
- * Monte-Carlo detection of the wavepacket on the screen: arrival times are
- * drawn from the flux through the screen column, transverse positions from
- * the branch gaussians. Deterministic for a given seed.
+ * Approximate Monte-Carlo sampling of detector hits from the packet density:
+ * arrival times are drawn from a CDF shaped by the packet flux through the
+ * screen column, transverse positions from the branch Gaussians. This is a
+ * density-based approximation, not a full probability-current detector model
+ * (j = ħ/m·Im(ψ*∇ψ)); for a heavy Ag packet with near-normal incidence the
+ * difference is negligible. Deterministic for a given seed.
  */
 export function sampleScreenHits(
-  q: QuantumResult,
+  q: QuantumEnvelope,
   screenX: number,
   count: number,
   seed: number,

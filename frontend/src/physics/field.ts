@@ -7,6 +7,16 @@ import type { Apparatus } from './types'
  * the beam axis; its local field (near axis, div-free & curl-free to 1st order):
  *   B_local = envelope(x_l) * zenv(r_perp) * (0, -G*y_l, B0 + G*z_l)
  * Local axis z_l maps to world n(theta) = (0, -sin(theta), cos(theta)).
+ *
+ * Three related but distinct objects live here (kept separate on purpose):
+ *   1. the ideal analytic field above (the "physical" model);
+ *   2. the rendered field (`fieldAt`) — ideal field times the gap window,
+ *      used only for visualization;
+ *   3. the force model (`forceClassical`) — gradient of mu.B with the gap
+ *      window treated as a constant (its gradient is neglected).
+ * Consequence: away from the beam axis F_engine != grad(mu . B_rendered).
+ * Near the axis (|r_perp| < gap) the window is ~1 and the two agree; this is
+ * a documented educational approximation, not a hidden inconsistency.
  */
 export interface AppCache {
   cos: number

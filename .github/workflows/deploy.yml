@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +24,46 @@ jobs:
         with:
           node-version: 22
 
-      - name: Enable pnpm
+      - name: Enable pnpm (pinned via packageManager)
         run: |
           corepack enable
-          corepack prepare pnpm@latest --activate
+          corepack prepare pnpm@10.34.5 --activate
 
-      - name: Install dependencies
-        run: pnpm --dir frontend install --no-frozen-lockfile
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --dir frontend typecheck
+
+      - name: Unit tests (vitest, includes JS↔WASM parity)
+        run: pnpm --dir frontend test
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: physics-wasm
+
+      - name: Rust tests
+        run: cargo test --manifest-path physics-wasm/Cargo.toml
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm (pinned via packageManager)
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.5 --activate
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm --dir frontend install --frozen-lockfile
 
       - uses: actions/configure-pages@v5
 

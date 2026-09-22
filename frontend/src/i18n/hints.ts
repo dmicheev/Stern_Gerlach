@@ -91,7 +91,7 @@ const ru: Record<string, HintContent> = {
     body: [
       'Пучок — это волновой пакет. В магните он не «делится как струя», а расщепляется на <b>суперпозицию</b> двух гауссовых пакетов с весами |c_b|² (правило Борна).',
       'Как считается простыми словами: «размазанная волна, которая делится, а не выбирает». Отдельных атомов нет — весь пучок один пакет ψ. Магнит не бросает монетку: пакет делится на две ветви, и обе живут одновременно (атом «проходит через оба порта»). Блокиратор выжигает целую ветвь, попадания на экран сэмплируются из |ψ|². При большом N гистограмма полуклассики сходится к этому же профилю — вероятность одна, «онтология» разная.',
-      'Центры пакетов движутся по классическим траекториям (теорема Эренфеста: d²⟨z⟩/dt² = ⟨F⟩), а огибающие расплываются: σ(t) = σ₀√(1 + (ħt/2mσ₀²)²). Для тяжёлых атомов Ag расплывание ничтожно (~10⁻³ от ширины) — вся ширина пятен определяется апертурой и разбросом скоростей.',
+      'Центры пакетов движутся по классическим траекториям (теорема Эренфеста: d²⟨z⟩/dt² = ⟨F⟩), а огибающие расплываются: σ²(t) = σ₀² + (σ_v·t)² + (ħt/2mσ₀)² — начальная ширина щели, классический разброс скоростей и собственно квантовое расплывание складываются независимо. Для тяжёлых атомов Ag квантовое слагаемое — нанометры (~10⁻³ от ширины): пятно расширяют в основном апертура и разброс скоростей; панель статистики показывает вклад каждого слагаемого.',
       'Что приближено: это аналитическая суперпозиция, а не численное решение уравнения Паули iħ∂ψ/∂t = [−ħ²∇²/2m − μ·B]ψ. Отличия видны только в деталях дифракции на щели и в структуре фрейн-полей у краёв магнита.',
     ],
   },
@@ -421,7 +421,7 @@ const en: Record<string, HintContent> = {
     body: [
       'The beam is a wavepacket. In the magnet it does not “split like a jet” — it becomes a <b>superposition</b> of two gaussian branches with weights |c_b|².',
       'In plain words: “a smeared wave that splits rather than chooses”. There are no individual atoms — the whole beam is one packet ψ. The magnet tosses no coin: the packet splits into two branches and both live at once (the atom “goes through both ports”). A blocker burns away a whole branch; screen hits are sampled from |ψ|². At large N the semiclassical histogram converges to this same profile — same probabilities, different ontology.',
-      'Branch centers follow classical trajectories (Ehrenfest theorem); envelopes spread as σ(t) = σ₀√(1+(ħt/2mσ₀²)²) — negligible for heavy Ag atoms.',
+      'Branch centers follow classical trajectories (Ehrenfest theorem); envelopes spread as σ²(t) = σ₀² + (σ_v·t)² + (ħt/2mσ₀)² — the slit width, the classical velocity spread and the intrinsic quantum dispersion add independently. For heavy Ag atoms the quantum term is nanometers (~10⁻³ of the width): the spots are widened mostly by aperture and velocity spread; the stats panel shows each contribution.',
       'Honest approximation: this is an analytic superposition, not a numerical solution of the Pauli equation iħ∂ψ/∂t = [−ħ²∇²/2m − μ·B]ψ; the differences appear only in slit diffraction detail and fringe-field structure.',
     ],
   },

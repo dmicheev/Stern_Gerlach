@@ -4,7 +4,7 @@ import { useStore } from '../state/store'
 import { Section } from './widgets'
 import { Hint } from './Hint'
 import { spinColor } from '../scene/ApparatusModel'
-import { M_TO_UNITS } from '../physics/constants'
+import { M_TO_UNITS, AG_MASS, HBAR } from '../physics/constants'
 import { adaptiveZRangeMm } from '../physics/scale'
 import { evalAxisProfile, maxAxisExtent } from '../physics/quantum'
 import { screenFrame, toScreenFrame } from '../physics/beams'
@@ -88,6 +88,7 @@ export function StatsPanel() {
   // histogram axis follows the LAST detector axis (quantum deflects along it too)
   const apparatuses = useStore((s) => s.config.apparatuses)
   const vMean = useStore((s) => s.config.source.vMean)
+  const source = useStore((s) => s.config.source)
   const frame = useMemo(() => screenFrame(apparatuses, vMean), [apparatuses, vMean])
 
   const branches = useMemo(() => {
@@ -302,6 +303,21 @@ export function StatsPanel() {
               })}
             </tbody>
           </table>
+        )}
+        {mode === 'quantum' && quantum?.status === 'done' && quantum.header && (
+          <div className="quantum-status" style={{ opacity: 0.85 }}>
+            {t('quantumWidths', {
+              slit: (Math.max(source.aperture * 0.5, 2e-4) * M_TO_UNITS).toFixed(2),
+              clas: (source.divergence * source.vMean * quantum.header.tTotal * M_TO_UNITS).toFixed(2),
+              quan: (
+                (HBAR / (2 * AG_MASS * Math.max(source.aperture * 0.5, 2e-4))) *
+                quantum.header.tTotal *
+                M_TO_UNITS
+              ).toExponential(2),
+            })}
+            {quantum.discardedWeight > 0 &&
+              ` · ${t('quantumDiscarded', { w: quantum.discardedWeight.toExponential(2) })}`}
+          </div>
         )}
         {mode === 'quantum' && (
           <div className="quantum-status">

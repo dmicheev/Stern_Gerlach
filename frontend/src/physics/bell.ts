@@ -1,19 +1,33 @@
 import { Pcg32 } from './rng'
 
 /**
- * Bell/CHSH experiment engine (idealized spin-1/2 pairs, SG-analyzer stations).
+ * Bell/CHSH experiment engine — an IDEALIZED statistical simulation with
+ * configurable detection efficiency and visibility (spin-1/2 pairs,
+ * SG-analyzer stations).
  *
- * Layout mirrors Hensen et al., Nature 526, 682 (2015):
+ * Layout is inspired by Hensen et al., Nature 526, 682 (2015):
  * an entangled pair source in the middle, two stations (A left, B right),
  * each with two preset analyzer angles; a per-pair random setting choice
  * ("QRNG"); binary outcomes ±1; CHSH S = E00 + E01 + E10 − E11, bound S ≤ 2
  * for local realism, quantum singlet reaches 2√2 at optimal angles.
  *
+ * IMPORTANT — what this simulation is NOT: it is not a loophole-free test.
+ * The CHSH statistic is built only over pairs where BOTH detectors fired
+ * (post-selection). With detection efficiency η < 1 this is exactly the
+ * detection-loophole / fair-sampling scenario: a local model can exceed
+ * S = 2 not because local realism fails, but because inconvenient events
+ * are discarded. The η slider deliberately demonstrates this loophole.
+ * Spacelike separation, fast basis switching, real detector timelines and
+ * memory effects are not modeled — station settings are simply drawn
+ * per pair. Think "idealized CHSH statistics sandbox", not a claim about
+ * loophole closure (for that, see the real Hensen 2015 experiment).
+ *
  * Models:
  *  - 'quantum': singlet |ψ−⟩, E(a,b) = −cos(θa − θb); sampled pair-by-pair
  *  - 'local':  local hidden variables — each pair carries a predetermined
  *              hidden direction φ; outcomes x = sign(cos(θa − φ)),
- *              y = −sign(cos(θb − φ)). Bell's theorem ⇒ S ≤ 2 always.
+ *              y = −sign(cos(θb − φ)). Bell's theorem ⇒ S ≤ 2 always
+ *              (when η = 1; with η < 1 post-selection can push it above).
  *
  * Sliders: detection efficiency η (detection loophole) and pair-level
  * visibility V (white-noise mixing, E → V·E).

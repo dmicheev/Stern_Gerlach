@@ -1,6 +1,7 @@
 {
   "name": "stern-gerlach",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "node scripts/run.mjs dev",
     "start": "node scripts/run.mjs dev",

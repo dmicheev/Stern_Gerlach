@@ -25,6 +25,13 @@ interface WasmGlue {
  *   i8  spinSign[n]
  *   u8  absorbed[n]
  *   u8  history[n*nApp]
+ *
+ * The arrays are returned as zero-copy TypedArray views over the payload
+ * buffer (the Rust side pads the header to 8-byte alignment and emits all
+ * f64 blocks first, so every view is naturally aligned). The only copy on
+ * the path is the single wasm-bindgen copy out of linear memory. Views read
+ * native endianness — the layout is little-endian, matching every supported
+ * browser platform.
  */
 export function parseWasmResult(buffer: ArrayBuffer, byteOffset = 0): SimResult {
   const dv = new DataView(buffer, byteOffset)
@@ -39,20 +46,17 @@ export function parseWasmResult(buffer: ArrayBuffer, byteOffset = 0): SimResult 
 
   const { nParticles: n, nHero, nT, nApparatus: nApp } = header
   const f64 = (len: number) => {
-    const a = new Float64Array(len)
-    for (let i = 0; i < len; i++) a[i] = dv.getFloat64(off + i * 8, true)
+    const a = new Float64Array(buffer, byteOffset + off, len)
     off += len * 8
     return a
   }
   const i8 = (len: number) => {
-    const a = new Int8Array(len)
-    for (let i = 0; i < len; i++) a[i] = dv.getInt8(off + i)
+    const a = new Int8Array(buffer, byteOffset + off, len)
     off += len
     return a
   }
   const u8 = (len: number) => {
-    const a = new Uint8Array(len)
-    for (let i = 0; i < len; i++) a[i] = dv.getUint8(off + i)
+    const a = new Uint8Array(buffer, byteOffset + off, len)
     off += len
     return a
   }

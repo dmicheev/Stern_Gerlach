@@ -12,6 +12,8 @@ export interface QuantumJob {
   header: QuantumHeader | null
   branches: QuantumBranch[]
   error: string | null
+  /** probability mass lost to the branch-weight cutoff (shown when > 0) */
+  discardedWeight: number
 }
 
 interface Store {
@@ -217,7 +219,7 @@ export const useStore = create<Store>((set) => ({
       }
     }),
   applyConfig: (config) =>
-    set({ config: normalize({ ...config, seed: 42 }), tCurrent: 0, playing: true, selectedApparatusId: null }),
+    set({ config: normalize(config), tCurrent: 0, playing: true, selectedApparatusId: null }),
   setSelected: (id) => set({ selectedApparatusId: id }),
   setPlaying: (v) => set({ playing: v }),
   setLoop: (v) => set({ loop: v }),

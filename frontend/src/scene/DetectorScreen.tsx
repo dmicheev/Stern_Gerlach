@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useStore } from '../state/store'
@@ -78,7 +78,7 @@ export function DetectorScreen() {
   /** square screen: height equals the (adaptive) width */
   const Y_SPAN = Z_SPAN
 
-  const clear = () => {
+  const clear = useCallback(() => {
     const ctx = canvas.getContext('2d')!
     ctx.fillStyle = '#0a1424'
     ctx.fillRect(0, 0, W, H)
@@ -92,7 +92,7 @@ export function DetectorScreen() {
     }
     texture.needsUpdate = true
     lastDrawn.current = 0
-  }
+  }, [canvas, texture])
 
   useEffect(() => {
     clear()
