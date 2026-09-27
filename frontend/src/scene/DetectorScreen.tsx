@@ -108,7 +108,7 @@ export function DetectorScreen() {
       if (qHeader && qBranches && qBranches.length) {
         const q = { header: qHeader, branches: qBranches }
         const n = Math.min(particleCount, 20000)
-        const h = sampleScreenHits(q, screenX, n, 4242)
+        const h = sampleScreenHits(q, screenX, n, 4242, frame.theta)
         src = { times: h.times, ys: h.ys, zs: h.zs, thetas: h.thetas, signs: h.signs }
       }
     } else if (result) {

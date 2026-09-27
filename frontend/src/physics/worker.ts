@@ -3,6 +3,7 @@ import { runSimulation } from './engine'
 import { simulateQuantum, type QuantumResult } from './quantum'
 import { runBell, type BellConfig, type BellResult } from './bell'
 import { loadEngine } from './wasm'
+import { kindOf } from './types'
 import type { SimulationConfig, SimResult } from './types'
 
 /** which of the concurrent trajectory jobs the message belongs to */
@@ -42,8 +43,14 @@ self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
       self.postMessage(resp)
       return
     }
+    // recombiners are quantum-only: trajectory engines (JS and WASM alike)
+    // receive them filtered out, keeping JS ↔ WASM parity for any config
+    const config: SimulationConfig = {
+      ...ev.data.config,
+      apparatuses: ev.data.config.apparatuses.filter((a) => kindOf(a) !== 'recombiner'),
+    }
     const engine = (await loadEngine()) ?? { kind: 'js' as const, run: runSimulation }
-    const result = engine.run(ev.data.config)
+    const result = engine.run(config)
     const resp: WorkerResponse = { id, channel: ev.data.channel, kind: 'trajectories', engine: engine.kind, result }
     self.postMessage(resp)
   } catch (err) {

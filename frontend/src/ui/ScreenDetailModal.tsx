@@ -89,7 +89,7 @@ export function ScreenDetailModal() {
       const branches = quantum?.branches
       if (!header || !branches?.length) return null
       const q = { header, branches }
-      const h = sampleScreenHits(q, screenX, Math.min(particleCount, 20000), 4242)
+      const h = sampleScreenHits(q, screenX, Math.min(particleCount, 20000), 4242, frame.theta)
       return { times: h.times, ys: h.ys, zs: h.zs, thetas: h.thetas, signs: h.signs }
     }
     if (!result) return null

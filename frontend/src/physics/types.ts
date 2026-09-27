@@ -1,5 +1,12 @@
 export type PhysicsMode = 'classical' | 'semiclassical' | 'quantum'
 export type PortSide = 'up' | 'down'
+/**
+ * analyzer — измеряющий анализатор (проекция + which-path, поведение по умолчанию);
+ * magnet   — когерентный расщепитель (не измеряет, ветви интерферируют);
+ * recombiner — сливает пару пучков родителя (${X}:up + ${X}:down) в ${X}:merged
+ *              профилем градиента +G/−G/+G (1:2:1); только квантовый режим.
+ */
+export type ApparatusKind = 'analyzer' | 'magnet' | 'recombiner'
 
 export interface Apparatus {
   id: string
@@ -18,7 +25,13 @@ export interface Apparatus {
   /** m, half pole gap */
   gap: number
   blockedPort: PortSide | null
+  /** apparatus role; undefined = 'analyzer' (backward compatible configs) */
+  kind?: ApparatusKind
+  /** recombiner only: extra phase (deg) applied to the up-arm of the merged pair */
+  phaseShiftDeg?: number
 }
+
+export const kindOf = (a: Apparatus): ApparatusKind => a.kind ?? 'analyzer'
 
 export interface SourceParams {
   /** m/s, mean beam velocity */

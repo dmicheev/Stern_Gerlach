@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { simulateQuantum, evalRho, evalProfile, evalAxisProfile, sampleScreenHits } from '../quantum'
+import {
+  simulateQuantum,
+  evalRho,
+  evalProfile,
+  evalAxisProfile,
+  sampleScreenHits,
+  spinor,
+  spinOverlap,
+} from '../quantum'
 import { screenFrame, toScreenFrame } from '../beams'
 import type { Apparatus, SimulationConfig } from '../types'
 
@@ -200,7 +208,7 @@ describe('quantum rotated detector', () => {
     const cfg = config({ apparatuses: [app] })
     const q = simulateQuantum(cfg)
     const f = screenFrame(cfg.apparatuses, cfg.source.vMean)
-    const hits = sampleScreenHits(q, cfg.screenX, 4000, 5)
+    const hits = sampleScreenHits(q, cfg.screenX, 4000, 5, f.theta)
     let agree = 0
     for (let i = 0; i < 4000; i++) {
       const { s } = toScreenFrame(f, hits.ys[i], hits.zs[i])
@@ -215,5 +223,151 @@ describe('quantum rotated detector', () => {
     )
     const axisMid = evalAxisProfile(q, cfg.screenX, tq, f, 0)
     expect(axis).toBeGreaterThan(5 * axisMid)
+  })
+})
+
+describe('quantum coherence (spinors, phases, recombiner)', () => {
+  it('spinors are normalized, orthogonal within an axis, project as cos²(Δ/2)', () => {
+    for (const deg of [0, 37, 90, 200, 359]) {
+      const th = (deg * Math.PI) / 180
+      const pp = spinOverlap(th, 1, th, 1)
+      expect(Math.hypot(pp.re, pp.im)).toBeCloseTo(1, 12)
+      const pm = spinOverlap(th, 1, th, -1)
+      expect(Math.hypot(pm.re, pm.im)).toBeCloseTo(0, 12)
+    }
+    // |⟨χ_0,+|χ_θ,+⟩|² = cos²(θ/2)
+    for (const deg of [0, 30, 45, 90, 170]) {
+      const th = (deg * Math.PI) / 180
+      const so = spinOverlap(0, 1, th, 1)
+      expect(Math.hypot(so.re, so.im) ** 2).toBeCloseTo(Math.cos(th / 2) ** 2, 12)
+      const sm = spinOverlap(0, 1, th, -1)
+      expect(Math.hypot(sm.re, sm.im) ** 2).toBeCloseTo(Math.sin(th / 2) ** 2, 12)
+    }
+  })
+
+  it('spinor components: |χ|² per component sums to 1', () => {
+    for (const deg of [0, 45, 90, 270]) {
+      for (const s of [1, -1]) {
+        const c = spinor((deg * Math.PI) / 180, s)
+        const norm = c[0] ** 2 + c[1] ** 2 + c[2] ** 2 + c[3] ** 2
+        expect(norm).toBeCloseTo(1, 12)
+      }
+    }
+  })
+
+  it('down branch at a tilted analyzer gets sign-correct probabilities', () => {
+    // spin −z meets a 45° analyzer: P(up) = sin²(22.5°) — the old theta-only
+    // formula inverted this
+    const first = apparatus({ xStart: 0.2, blockedPort: 'up' }) // only −z survives
+    const second = apparatus({ xStart: 0.44, angleDeg: 45, attachTo: `${first.id}:down` })
+    const q = simulateQuantum(config({ apparatuses: [first, second], screenX: 0.78 }))
+    expect(q.branches).toHaveLength(2)
+    const wUp = q.branches.filter((b) => b.spinSign > 0).reduce((a, b) => a + b.weight, 0)
+    const wDown = q.branches.filter((b) => b.spinSign < 0).reduce((a, b) => a + b.weight, 0)
+    expect(wUp).toBeCloseTo(0.5 * Math.sin(Math.PI / 8) ** 2, 4)
+    expect(wDown).toBeCloseTo(0.5 * Math.cos(Math.PI / 8) ** 2, 4)
+  })
+
+  it('magnet splits a pure branch coherently; mixed root stays incoherent', () => {
+    const filter = apparatus({ xStart: 0.2, blockedPort: 'down' })
+    const mag = apparatus({ xStart: 0.44, angleDeg: 45, attachTo: `${filter.id}:up`, kind: 'magnet' })
+    const q = simulateQuantum(config({ apparatuses: [filter, mag], screenX: 0.78 }))
+    expect(q.branches).toHaveLength(2)
+    expect(new Set(q.branches.map((b) => b.cohId)).size).toBe(1)
+    const total = q.branches.reduce((a, b) => a + b.weight, 0)
+    expect(total).toBeCloseTo(0.5, 6)
+    const w = q.branches.map((b) => b.weight).sort((a, b) => b - a)
+    expect(w[0]).toBeCloseTo(0.5 * Math.cos(Math.PI / 8) ** 2, 4)
+    expect(w[1]).toBeCloseTo(0.5 * Math.sin(Math.PI / 8) ** 2, 4)
+
+    // unpolarized root through a magnet: mixed state, incoherent halves
+    const magRoot = apparatus({ xStart: 0.25, kind: 'magnet' })
+    const q2 = simulateQuantum(config({ apparatuses: [magRoot] }))
+    expect(new Set(q2.branches.map((b) => b.cohId)).size).toBe(2)
+    for (const b of q2.branches) expect(b.weight).toBeCloseTo(0.5, 6)
+  })
+
+  it('recombiner returns the coherent pair to a common axis (position & velocity)', () => {
+    const filter = apparatus({ xStart: 0.18, blockedPort: 'down', gradient: 300 })
+    const splitter = apparatus({ xStart: 0.4, angleDeg: 90, attachTo: `${filter.id}:up`, kind: 'magnet' })
+    const rec = apparatus({
+      xStart: 0.56,
+      angleDeg: 90,
+      length: 0.36,
+      gradient: 2000,
+      attachTo: `${splitter.id}:up`,
+      kind: 'recombiner',
+    })
+    const q = simulateQuantum(config({ apparatuses: [filter, splitter, rec], screenX: 1.0 }))
+    expect(q.branches).toHaveLength(2)
+    expect(new Set(q.branches.map((b) => b.cohId)).size).toBe(1)
+    const fr = q.header.frameCount - 1
+    const [b1, b2] = q.branches
+    expect(Math.abs(b1.cy[fr] - b2.cy[fr])).toBeLessThan(1e-6)
+    expect(Math.abs(b1.cz[fr] - b2.cz[fr])).toBeLessThan(1e-6)
+    expect(Math.abs(b1.vy[fr] - b2.vy[fr])).toBeLessThan(1e-3)
+    expect(Math.abs(b1.vz[fr] - b2.vz[fr])).toBeLessThan(1e-3)
+    // relative phase is reported
+    expect(q.interferometerPhases).toHaveLength(1)
+    expect(q.interferometerPhases[0].deltaPhase).toBeGreaterThanOrEqual(0)
+    expect(q.interferometerPhases[0].deltaPhase).toBeLessThan(2 * Math.PI)
+  })
+
+  it('interferometer: final analyzer port fraction oscillates with the phase knob', () => {
+    const baseApparatus = () => {
+      const filter = apparatus({ xStart: 0.18, blockedPort: 'down', gradient: 300 })
+      const splitter = apparatus({ xStart: 0.4, angleDeg: 90, attachTo: `${filter.id}:up`, kind: 'magnet' })
+      const rec = (phase: number) =>
+        apparatus({
+          xStart: 0.56,
+          angleDeg: 90,
+          length: 0.36,
+          gradient: 2000,
+          attachTo: `${splitter.id}:up`,
+          kind: 'recombiner',
+          phaseShiftDeg: phase,
+        })
+      const analyzer = apparatus({ xStart: 0.96, angleDeg: 0, attachTo: `${splitter.id}:merged` })
+      return { filter, splitter, rec, analyzer }
+    }
+    const fraction = (phase: number) => {
+      const { filter, splitter, rec, analyzer } = baseApparatus()
+      const cfg = config({
+        apparatuses: [filter, splitter, rec(phase), analyzer],
+        screenX: 1.15,
+      })
+      const q = simulateQuantum(cfg)
+      const hits = sampleScreenHits(q, cfg.screenX, 6000, 7, 0)
+      let up = 0
+      for (let i = 0; i < hits.signs.length; i++) if (hits.signs[i] > 0) up++
+      return up / hits.signs.length
+    }
+    const f0 = fraction(0)
+    const f90 = fraction(90)
+    const f180 = fraction(180)
+    const f270 = fraction(270)
+    // complementary pairs sum to 1 (probability conservation)
+    expect(Math.abs(f0 + f180 - 1)).toBeLessThan(0.05)
+    expect(Math.abs(f90 + f270 - 1)).toBeLessThan(0.05)
+    // strong oscillation across the phase scan (visibility near 1)
+    expect(Math.abs(f0 - f180) + Math.abs(f90 - f270)).toBeGreaterThan(1.2)
+  })
+
+  it('blocking a port between splitter and recombiner kills the interference pair', () => {
+    const filter = apparatus({ xStart: 0.18, blockedPort: 'down', gradient: 300 })
+    const splitter = apparatus({ xStart: 0.4, angleDeg: 90, attachTo: `${filter.id}:up`, kind: 'magnet' })
+    const rec = apparatus({
+      xStart: 0.56,
+      angleDeg: 90,
+      length: 0.36,
+      gradient: 2000,
+      attachTo: `${splitter.id}:up`,
+      kind: 'recombiner',
+      blockedPort: 'down',
+    })
+    const q = simulateQuantum(config({ apparatuses: [filter, splitter, rec], screenX: 1.0 }))
+    // the down member is absorbed at the recombiner plate — no pair remains
+    expect(q.branches).toHaveLength(1)
+    expect(q.interferometerPhases).toHaveLength(0)
   })
 })

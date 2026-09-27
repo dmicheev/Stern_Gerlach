@@ -77,6 +77,36 @@ export const presets: Preset[] = [
       screenX: 0.6,
     }),
   },
+  {
+    // SG interferometer: filter → coherent magnet 90° → recombiner → analyzer 0°.
+    // Scanning the recombiner phase (phaseShiftDeg) oscillates the final
+    // analyzer port counts — the visible face of branch coherence.
+    id: 'interferometer',
+    build: (): SimulationConfig => {
+      // low filter gradient: the polarizing filter deflects little, keeping
+      // the interferometer riding near the beam axis
+      const filter = {
+        ...makeApparatus(0.18, 0),
+        blockedPort: 'down' as const,
+        gradient: 300,
+      }
+      const splitter = { ...makeApparatus(0.4, 90, `${filter.id}:up`), kind: 'magnet' as const }
+      const recombiner = {
+        ...makeApparatus(0.56, 90, `${splitter.id}:up`),
+        kind: 'recombiner' as const,
+        length: 0.36,
+        gradient: 2000,
+        phaseShiftDeg: 0,
+      }
+      const analyzer = makeApparatus(0.96, 0, `${splitter.id}:merged`)
+      return {
+        ...base,
+        mode: 'quantum',
+        apparatuses: [filter, splitter, recombiner, analyzer],
+        screenX: 1.15,
+      }
+    },
+  },
 ]
 
 export const bellPresets: BellPreset[] = [

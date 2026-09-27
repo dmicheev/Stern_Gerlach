@@ -4,7 +4,7 @@ import { TransformControls } from '@react-three/drei'
 import { useStore } from '../state/store'
 import { Annotation } from './Annotation'
 import { M_TO_UNITS } from '../physics/constants'
-import type { Apparatus } from '../physics/types'
+import { kindOf, type Apparatus } from '../physics/types'
 import { useTranslation } from 'react-i18next'
 import type { Group } from 'three'
 import * as THREE from 'three'
@@ -24,6 +24,22 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
   const L = apparatus.length * M_TO_UNITS
   const gapU = apparatus.gap * M_TO_UNITS
   const theta = (apparatus.angleDeg * Math.PI) / 180
+  const kind = kindOf(apparatus)
+
+  // pole-insert colors mark the apparatus role:
+  // analyzer = red/blue, coherent magnet = teal, recombiner = violet
+  const poleUp =
+    kind === 'recombiner'
+      ? '#6a3aa0'
+      : kind === 'magnet'
+        ? '#2a7a6a'
+        : '#7a4040'
+  const poleDown =
+    kind === 'recombiner'
+      ? '#46327a'
+      : kind === 'magnet'
+        ? '#24527a'
+        : '#40527a'
 
   const metal = (
     <meshStandardMaterial color="#7b8595" metalness={0.55} roughness={0.34} />
@@ -47,7 +63,7 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
         </mesh>
         <mesh position={[L / 2, 0, gapU + 1.6]}>
           <boxGeometry args={[L, 5, 3.2]} />
-          <meshStandardMaterial color="#7a4040" metalness={0.7} roughness={0.4} emissive="#331111" />
+          <meshStandardMaterial color={poleUp} metalness={0.7} roughness={0.4} emissive={kind === 'recombiner' ? '#1d0a33' : '#331111'} />
         </mesh>
 
         {/* South pole (grooved, -z_local) */}
@@ -57,7 +73,7 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
         </mesh>
         <mesh position={[L / 2, 0, -gapU - 1.8]}>
           <boxGeometry args={[L, 18, 3.6]} />
-          <meshStandardMaterial color="#40527a" metalness={0.7} roughness={0.4} emissive="#111533" />
+          <meshStandardMaterial color={poleDown} metalness={0.7} roughness={0.4} emissive={kind === 'recombiner' ? '#120a2e' : '#111533'} />
         </mesh>
 
         {/* yoke (C-shape behind, -y) */}
@@ -101,6 +117,20 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
         <Html position={[L / 2, 16, -gapU - 32]} center style={{ pointerEvents: 'none' }}>
           <div style={{ color: '#7aa0ff', fontSize: 11, fontWeight: 700, textShadow: '0 0 6px #000' }}>S</div>
         </Html>
+        {kind !== 'analyzer' && (
+          <Html position={[-8, 16, 0]} center style={{ pointerEvents: 'none' }}>
+            <div
+              style={{
+                color: kind === 'recombiner' ? '#c49bff' : '#7bffd9',
+                fontSize: 12,
+                fontWeight: 800,
+                textShadow: '0 0 6px #000',
+              }}
+            >
+              {kind === 'recombiner' ? 'R' : 'C'}
+            </div>
+          </Html>
+        )}
         {showAnnot && (
           <Annotation
             position={[L / 2, 0, gapU + 62]}

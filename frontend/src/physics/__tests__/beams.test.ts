@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screenFrame, toScreenFrame, WORLD_FRAME, buildBeamTree, branchPoint } from '../beams'
+import { screenFrame, toScreenFrame, WORLD_FRAME, buildBeamTree, branchPoint, beamSegments } from '../beams'
 import type { Apparatus } from '../types'
 
 function app(id: string, xStart: number, angleDeg = 0, attachTo = 'root'): Apparatus {
@@ -46,5 +46,42 @@ describe('screenFrame', () => {
     const hit2 = toScreenFrame(f, f.cy, f.cz + eps)
     expect(hit2.s).toBeCloseTo(0)
     expect(hit2.t).toBeCloseTo(eps)
+  })
+})
+
+describe('recombiner merged beams', () => {
+  it('recombiner sits on the splitter axis; merged beam rides it straight', () => {
+    const v = 500
+    const a = app('a', 0.2, 0)
+    const r = { ...app('r', 0.5, 0, 'a:up'), kind: 'recombiner' as const, length: 0.2 }
+    const tree = buildBeamTree([a, r], v)
+    const rn = tree.byId.get('r')!
+    // recombiner is centered on the parent splitter's axis, not on a branch
+    expect(rn.cy).toBeCloseTo(0)
+    expect(rn.cz).toBeCloseTo(0)
+    // it is registered on both sibling beams
+    expect(tree.beams.get('a:up')!.map((n) => n.app.id)).toContain('r')
+    expect(tree.beams.get('a:down')!.map((n) => n.app.id)).toContain('r')
+    // merged beam point = splitter axis (straight, no kick)
+    const m = branchPoint(tree, 'a', 'merged', 0.8, v)
+    expect(m.y).toBeCloseTo(0)
+    expect(m.z).toBeCloseTo(0)
+  })
+
+  it('beam segments converge into the recombiner and continue as one merged beam', () => {
+    const v = 500
+    const a = app('a', 0.2, 0)
+    const r = { ...app('r', 0.5, 0, 'a:up'), kind: 'recombiner' as const, length: 0.2 }
+    const segs = beamSegments(buildBeamTree([a, r], v), 0.9, v)
+    // sibling beams end at the recombiner entry (x = 0.5, center z = 0)
+    const endsAtRec = segs.filter((s) => Math.abs(s.to[0] - 0.5) < 1e-9)
+    expect(endsAtRec.length).toBeGreaterThanOrEqual(2)
+    for (const s of endsAtRec) {
+      expect(Math.abs(s.to[2])).toBeLessThan(1e-9)
+    }
+    // exactly one merged continuation from the recombiner exit to the screen
+    const merged = segs.filter((s) => Math.abs(s.from[0] - 0.7) < 1e-9 && Math.abs(s.to[0] - 0.9) < 1e-9)
+    expect(merged).toHaveLength(1)
+    expect(Math.abs(merged[0].from[2])).toBeLessThan(1e-9)
   })
 })

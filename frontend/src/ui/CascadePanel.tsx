@@ -1,8 +1,10 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore, descendantsOf } from '../state/store'
 import { Section, Slider, HintLabel } from './widgets'
 import { spinColor } from '../scene/ApparatusModel'
+import { kindOf } from '../physics/types'
+import { mergedBeamKey } from '../physics/beams'
 
 export function CascadePanel() {
   const { t } = useTranslation()
@@ -26,6 +28,8 @@ export function CascadePanel() {
           const [r, g, b] = spinColor((a.angleDeg * Math.PI) / 180, 1)
           const active = selectedId === a.id
           const forbidden = descendantsOf(a.id, config.apparatuses)
+          const kind = kindOf(a)
+          const isRecombiner = kind === 'recombiner'
           return (
             <div key={a.id} className={`app-card ${active ? 'app-card-active' : ''}`}>
               <div className="app-card-head">
@@ -38,6 +42,37 @@ export function CascadePanel() {
               </div>
 
               <div className="blocked-row">
+                <HintLabel id="beam">{t('kind')}</HintLabel>
+                <select
+                  value={kind}
+                  onChange={(e) => updateApparatus(a.id, { kind: e.target.value as typeof kind })}
+                >
+                  <option value="analyzer">{t('kindAnalyzer')}</option>
+                  <option value="magnet">{t('kindMagnet')}</option>
+                  <option value="recombiner">{t('kindRecombiner')}</option>
+                </select>
+              </div>
+
+              {isRecombiner && (
+                <Slider
+                  label={t('phaseShift')}
+                  value={a.phaseShiftDeg ?? 0}
+                  min={0}
+                  max={360}
+                  step={5}
+                  display={`${(a.phaseShiftDeg ?? 0).toFixed(0)}°`}
+                  onChange={(v) => updateApparatus(a.id, { phaseShiftDeg: v })}
+                />
+              )}
+
+              {isRecombiner && config.mode !== 'quantum' && (
+                <div className="blocked-row" style={{ opacity: 0.75 }}>
+                  <HintLabel id="beam">ⓘ</HintLabel>
+                  <span>{t('recombinerQuantumOnly')}</span>
+                </div>
+              )}
+
+              <div className="blocked-row">
                 <HintLabel id="beam">{t('beam')}</HintLabel>
                 <select
                   value={a.attachTo}
@@ -48,16 +83,28 @@ export function CascadePanel() {
                     .filter((other) => other.id !== a.id && !forbidden.has(other.id))
                     .map((other) => {
                       const j = sorted.indexOf(other) + 1
-                      return (
-                        <Fragment key={other.id}>
+                      const options: ReactNode[] = []
+                      options.push(
+                        <Fragment key="ports">
                           <option value={`${other.id}:up`}>
                             ↑ {t('beamPort')} #{j}
                           </option>
                           <option value={`${other.id}:down`}>
                             ↓ {t('beamPort')} #{j}
                           </option>
-                        </Fragment>
+                        </Fragment>,
                       )
+                      if (kindOf(other) === 'recombiner') {
+                        const merged = mergedBeamKey(other)
+                        if (merged) {
+                          options.push(
+                            <option key="merged" value={merged}>
+                              ⊕ {t('beamPort')} #{j} → merged
+                            </option>,
+                          )
+                        }
+                      }
+                      return options
                     })}
                 </select>
               </div>

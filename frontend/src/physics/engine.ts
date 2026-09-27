@@ -2,6 +2,7 @@ import { AG_MASS, MU_B } from './constants'
 import { buildCache, envelope, gapWindow, forceClassical, type AppCache } from './field'
 import { buildBeamTree, ROOT_BEAM, type BeamApparatus, type BeamTree } from './beams'
 import { Pcg32 } from './rng'
+import { kindOf } from './types'
 import type { SimulationConfig, SimResult } from './types'
 
 const STEPS = 1200
@@ -10,10 +11,13 @@ const SAMPLE_EVERY = 7 // ~171 samples + final
 
 export function runSimulation(cfg: SimulationConfig): SimResult {
   const rng = new Pcg32(cfg.seed >>> 0, 54n)
-  const tree: BeamTree = buildBeamTree(cfg.apparatuses, cfg.source.vMean)
+  // recombiners are a quantum-only element: classical/semiclassical particles
+  // pass straight through (the UI marks such apparatuses as ignored)
+  const apparatuses = cfg.apparatuses.filter((a) => kindOf(a) !== 'recombiner')
+  const tree: BeamTree = buildBeamTree(apparatuses, cfg.source.vMean)
   const centers = new Map<string, { y: number; z: number }>()
   for (const n of tree.nodes) centers.set(n.app.id, { y: n.cy, z: n.cz })
-  const caches = buildCache(cfg.apparatuses, centers)
+  const caches = buildCache(apparatuses, centers)
   const cacheById = new Map<string, { cache: AppCache; node: BeamApparatus }>()
   for (const cache of caches) {
     const node = tree.nodes.find((n) => n.app.id === cache.id)

@@ -81,6 +81,7 @@ export function makeApparatus(xStart: number, angleDeg = 0, attachTo = 'root'): 
     b0: 0.5,
     gap: 0.006,
     blockedPort: null,
+    kind: 'analyzer',
   }
 }
 
@@ -107,7 +108,7 @@ export function ancestorsOf(id: string, apps: Apparatus[]): Set<string> {
   const seen = new Set<string>()
   let cur = byId.get(id)
   while (cur && cur.attachTo !== 'root') {
-    const m = /^(.*):(up|down)$/.exec(cur.attachTo)
+    const m = /^(.*):(up|down|merged)$/.exec(cur.attachTo)
     if (!m) break
     const parentId = m[1]
     if (seen.has(parentId)) break
@@ -133,7 +134,7 @@ function normalize(cfg: SimulationConfig): SimulationConfig {
     .sort((a, b) => a.xStart - b.xStart)
     .map((a) => {
       if (a.attachTo === 'root') return a
-      const m = /^(.*):(up|down)$/.exec(a.attachTo)
+      const m = /^(.*):(up|down|merged)$/.exec(a.attachTo)
       const parent = m ? byId.get(m[1]) : undefined
       if (!parent) return { ...a, attachTo: 'root' }
       const minX = parent.xStart + parent.length + 0.03
