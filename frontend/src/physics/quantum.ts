@@ -748,24 +748,22 @@ export function evalAxisProfile(
 ): number {
   const states = branchStatesAt(q, t)
   const pairs = getPairs(q.branches)
+  // rotate every branch into the screen frame once (was: per pair — O(pairs)
+  // trig instead of O(branches))
+  const rot = states.map((st) => ({
+    sc: (st.cy - f.cy) * f.ny + (st.cz - f.cz) * f.nz,
+    tc: (st.cy - f.cy) * f.nz - (st.cz - f.cz) * f.ny,
+    vs: st.vy * f.ny + st.vz * f.nz,
+    vt: st.vy * f.nz - st.vz * f.ny,
+    ss: Math.hypot(f.ny * st.sy, f.nz * st.sz),
+    st: Math.hypot(f.nz * st.sy, f.ny * st.sz),
+  }))
   let rho = 0
   for (const pr of pairs) {
     const si = states[pr.i]
     const sj = states[pr.j]
-    const rot = (st: BState) => {
-      const sc = (st.cy - f.cy) * f.ny + (st.cz - f.cz) * f.nz
-      const tc = (st.cy - f.cy) * f.nz - (st.cz - f.cz) * f.ny
-      return {
-        sc,
-        tc,
-        vs: st.vy * f.ny + st.vz * f.nz,
-        vt: st.vy * f.nz - st.vz * f.ny,
-        ss: Math.hypot(f.ny * st.sy, f.nz * st.sz),
-        st: Math.hypot(f.nz * st.sy, f.ny * st.sz),
-      }
-    }
-    const ri = rot(si)
-    const rj = rot(sj)
+    const ri = rot[pr.i]
+    const rj = rot[pr.j]
     const ot = overlapAxis(ri.tc, rj.tc, ri.vt, rj.vt, (ri.st + rj.st) / 2)
     const gx = Math.exp(
       -(((x - si.cx) / si.sx) ** 2 + ((x - sj.cx) / sj.sx) ** 2) / 4,

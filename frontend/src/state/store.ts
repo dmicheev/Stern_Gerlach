@@ -70,6 +70,15 @@ interface Store {
 }
 
 let nextId = 1
+
+/** stored language, validated — corrupted/unknown values fall back to 'ru' */
+function storedLang(): 'ru' | 'en' {
+  try {
+    return localStorage.getItem('sg-lang') === 'en' ? 'en' : 'ru'
+  } catch {
+    return 'ru'
+  }
+}
 export function makeApparatus(xStart: number, angleDeg = 0, attachTo = 'root'): Apparatus {
   return {
     id: `app-${nextId++}-${Math.random().toString(36).slice(2, 6)}`,
@@ -140,6 +149,9 @@ function normalize(cfg: SimulationConfig): SimulationConfig {
       const minX = parent.xStart + parent.length + 0.03
       return a.xStart < minX ? { ...a, xStart: minX } : a
     })
+  // the clamp above can push a child forward past later apparatuses — re-sort
+  // so "sorted by xStart" stays an invariant of the stored config
+  apps.sort((a, b) => a.xStart - b.xStart)
   return { ...cfg, apparatuses: apps }
 }
 
@@ -147,7 +159,7 @@ export const useStore = create<Store>((set) => ({
   kind: 'cascade',
   config: defaultConfig(),
   bellConfig: { ...HENSEN_ANGLES },
-  lang: (typeof localStorage !== 'undefined' && localStorage.getItem('sg-lang') as 'ru' | 'en') || 'ru',
+  lang: storedLang(),
   playing: true,
   loop: false,
   timeScale: 1,

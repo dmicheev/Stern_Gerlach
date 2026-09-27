@@ -77,6 +77,9 @@ export function useSimulationRunner() {
       }
       if (!seqRef.current.bell.isCurrent(d.id)) return
       s.setBellResult(d.result)
+      // only clear the flag if the bell mode is still active — a mode switch
+      // may have started a cascade computation in the meantime
+      if (s.kind === 'bell') s.setComputing(false)
       s.setTCurrent(0)
       s.setPlaying(true)
       s.bumpEpoch()
@@ -171,7 +174,8 @@ export function useSimulationRunner() {
       const id = seqRef.current.bell.next()
       const req: WorkerRequest = { id, kind: 'bell', config: s.bellConfig }
       workerRef.current?.postMessage(req)
-      s.setComputing(false)
+      // computing stays true until the bell response arrives (see onMessage);
+      // the worker's error handler clears it on failure
     }, 120)
     return () => clearTimeout(bellDebounceRef.current)
   }, [bellKey, kind])

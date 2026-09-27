@@ -331,9 +331,16 @@ const en = {
   },
 }
 
+let lng: string = 'ru'
+try {
+  lng = localStorage.getItem('sg-lang') === 'en' ? 'en' : 'ru'
+} catch {
+  lng = 'ru'
+}
+
 i18n.use(initReactI18next).init({
   resources: { ru: { translation: ru }, en: { translation: en } },
-  lng: typeof localStorage !== 'undefined' ? localStorage.getItem('sg-lang') || 'ru' : 'ru',
+  lng,
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 })

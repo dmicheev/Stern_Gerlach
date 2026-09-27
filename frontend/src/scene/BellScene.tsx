@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
@@ -205,24 +205,30 @@ function BellStation({ side, label, color }: StationProps) {
 
 /** accumulating dots on the two output ports of a station */
 function StationDots({ side }: { side: -1 | 1 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const texRef = useRef<THREE.CanvasTexture | null>(null)
+  const detX = side * DX
+  // canvas + texture created once per mount (render body must stay pure);
+  // texture disposed on unmount
+  const { ctx, texture } = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = 128
+    c.height = 256
+    return { ctx: c.getContext('2d')!, texture: new THREE.CanvasTexture(c) }
+  }, [])
   const drawnRef = useRef(0)
   const lastEpoch = useRef(-1)
-  const detX = side * DX
+
+  useEffect(() => () => texture.dispose(), [texture])
 
   useFrame(() => {
     const s = useStore.getState()
     const r = s.bellResult
-    if (!r || !texRef.current) return
-    const canvas = canvasRef.current!
+    if (!r) return
     if (lastEpoch.current !== s.epoch) {
       lastEpoch.current = s.epoch
-      canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.clearRect(0, 0, 128, 256)
       drawnRef.current = 0
-      texRef.current.needsUpdate = true
+      texture.needsUpdate = true
     }
-    const ctx = canvas.getContext('2d')!
     let lo = drawnRef.current
     let hi = r.nHero
     while (lo < hi) {
@@ -244,22 +250,14 @@ function StationDots({ side }: { side: -1 | 1 }) {
     }
     if (lo > drawnRef.current) {
       drawnRef.current = lo
-      texRef.current.needsUpdate = true
+      texture.needsUpdate = true
     }
   })
-
-  if (!canvasRef.current) {
-    const c = document.createElement('canvas')
-    c.width = 128
-    c.height = 256
-    canvasRef.current = c
-    texRef.current = new THREE.CanvasTexture(c)
-  }
 
   return (
     <mesh position={[detX - side * 3.6, 0, 0]} rotation={[0, (-side * Math.PI) / 2, 0]}>
       <planeGeometry args={[46, 66]} />
-      <meshBasicMaterial map={texRef.current!} transparent toneMapped={false} opacity={0.95} />
+      <meshBasicMaterial map={texture} transparent toneMapped={false} opacity={0.95} />
     </mesh>
   )
 }

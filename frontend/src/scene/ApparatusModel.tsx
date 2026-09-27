@@ -1,6 +1,5 @@
 import { useRef } from 'react'
-import { Html } from '@react-three/drei'
-import { TransformControls } from '@react-three/drei'
+import { Html, TransformControls } from '@react-three/drei'
 import { useStore } from '../state/store'
 import { Annotation } from './Annotation'
 import { M_TO_UNITS } from '../physics/constants'

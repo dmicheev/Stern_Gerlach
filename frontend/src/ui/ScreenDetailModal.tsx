@@ -133,7 +133,17 @@ export function ScreenDetailModal() {
 
   const liveCount = hits ? countUpTo(hits.times, tCurrent) : 0
 
-  // 2D scatter: z (mm) horizontal, y (mm) vertical — the view "onto the screen"
+  // 2D scatter: z (mm) horizontal, y (mm) vertical — the view "onto the screen".
+  // Incremental: dots are additive, so each frame draws only the NEW hits; a
+  // full redraw (axes + all dots) happens on resize / data / range change or
+  // when the clock rewinds (loop, scrub).
+  const scatterDrawnRef = useRef(0)
+  const scatterStateRef = useRef<{ w: number; h: number; zRange: number; hits: Hits | null }>({
+    w: 0,
+    h: 0,
+    zRange: 0,
+    hits: null,
+  })
   useEffect(() => {
     const canvas = scatterRef.current
     if (!canvas || !open) return
@@ -145,10 +155,25 @@ export function ScreenDetailModal() {
       // square screen plane: y half-span equals the adaptive z half-range
       const yHalf = zRange
       const H = Math.max(170, Math.min(430, Math.round((cw * (2 * yHalf)) / (2 * zRange))))
-      canvas.style.height = `${H}px`
-      canvas.width = Math.round(cw * dpr)
-      canvas.height = Math.round(H * dpr)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const st = scatterStateRef.current
+      const n = countUpTo(hits.times, tCurrent)
+      const full =
+        hits !== st.hits ||
+        cw !== st.w ||
+        H !== st.h ||
+        zRange !== st.zRange ||
+        n < scatterDrawnRef.current
+      if (full) {
+        st.w = cw
+        st.h = H
+        st.zRange = zRange
+        st.hits = hits
+        scatterDrawnRef.current = 0
+        canvas.style.height = `${H}px`
+        canvas.width = Math.round(cw * dpr)
+        canvas.height = Math.round(H * dpr)
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      }
       const ML = 40
       const MB = 20
       const MT = 8
@@ -158,36 +183,36 @@ export function ScreenDetailModal() {
       const xOf = (zmm: number) => ML + ((zmm + zRange) / (2 * zRange)) * PW
       const yOf = (ymm: number) => MT + ((yHalf - ymm) / (2 * yHalf)) * PH
 
-      ctx.fillStyle = '#0a1424'
-      ctx.fillRect(0, 0, cw, H)
-      ctx.strokeStyle = 'rgba(120,160,220,0.22)'
-      ctx.lineWidth = 1
-      ctx.beginPath(); ctx.moveTo(ML, MT); ctx.lineTo(ML, MT + PH); ctx.lineTo(ML + PW, MT + PH); ctx.stroke()
-      // gridlines at z ticks and y = 0
-      ctx.font = '10px ui-monospace, Menlo, monospace'
-      ctx.fillStyle = 'rgba(160,190,230,0.9)'
-      ctx.textAlign = 'center'
-      const ticks = [-1, -0.5, 0, 0.5, 1].map((f) => Math.round(f * zRange))
-      for (const z of ticks) {
-        const px = xOf(z)
-        ctx.strokeStyle = 'rgba(120,160,220,0.14)'
-        ctx.beginPath(); ctx.moveTo(px, MT); ctx.lineTo(px, MT + PH); ctx.stroke()
-        ctx.fillText(String(z), px, MT + PH + 13)
+      if (full) {
+        ctx.fillStyle = '#0a1424'
+        ctx.fillRect(0, 0, cw, H)
+        ctx.strokeStyle = 'rgba(120,160,220,0.22)'
+        ctx.lineWidth = 1
+        ctx.beginPath(); ctx.moveTo(ML, MT); ctx.lineTo(ML, MT + PH); ctx.lineTo(ML + PW, MT + PH); ctx.stroke()
+        // gridlines at z ticks and y = 0
+        ctx.font = '10px ui-monospace, Menlo, monospace'
+        ctx.fillStyle = 'rgba(160,190,230,0.9)'
+        ctx.textAlign = 'center'
+        const ticks = [-1, -0.5, 0, 0.5, 1].map((f) => Math.round(f * zRange))
+        for (const z of ticks) {
+          const px = xOf(z)
+          ctx.strokeStyle = 'rgba(120,160,220,0.14)'
+          ctx.beginPath(); ctx.moveTo(px, MT); ctx.lineTo(px, MT + PH); ctx.stroke()
+          ctx.fillText(String(z), px, MT + PH + 13)
+        }
+        ctx.fillText(t('sd.zAxis'), ML + PW / 2, H - 2)
+        ctx.strokeStyle = 'rgba(120,160,220,0.3)'
+        ctx.beginPath(); ctx.moveTo(ML, yOf(0)); ctx.lineTo(ML + PW, yOf(0)); ctx.stroke()
+        ctx.textAlign = 'right'
+        for (const y of [-yHalf, -yHalf / 2, 0, yHalf / 2, yHalf]) {
+          ctx.beginPath(); ctx.moveTo(ML - 3, yOf(y)); ctx.lineTo(ML, yOf(y)); ctx.stroke()
+          ctx.fillText(String(y), ML - 5, yOf(y) + 3)
+        }
+        ctx.textAlign = 'left'
+        ctx.fillText(t('sd.yAxis'), 3, MT + 2)
       }
-      ctx.fillText(t('sd.zAxis'), ML + PW / 2, H - 2)
-      ctx.strokeStyle = 'rgba(120,160,220,0.3)'
-      ctx.beginPath(); ctx.moveTo(ML, yOf(0)); ctx.lineTo(ML + PW, yOf(0)); ctx.stroke()
-      ctx.textAlign = 'right'
-      for (const y of [-yHalf, -yHalf / 2, 0, yHalf / 2, yHalf]) {
-        ctx.beginPath(); ctx.moveTo(ML - 3, yOf(y)); ctx.lineTo(ML, yOf(y)); ctx.stroke()
-        ctx.fillText(String(y), ML - 5, yOf(y) + 3)
-      }
-      ctx.textAlign = 'left'
-      ctx.fillText(t('sd.yAxis'), 3, MT + 2)
-
-      const n = countUpTo(hits.times, tCurrent)
       const classical = mode === 'classical'
-      for (let k = 0; k < n; k++) {
+      for (let k = scatterDrawnRef.current; k < n; k++) {
         const { s, t } = toScreenFrame(frame, hits.ys[k], hits.zs[k])
         const zmm = s * M_TO_UNITS
         const ymm = t * M_TO_UNITS
@@ -199,6 +224,7 @@ export function ScreenDetailModal() {
         ctx.arc(xOf(zmm), yOf(ymm), 1.2, 0, Math.PI * 2)
         ctx.fill()
       }
+      scatterDrawnRef.current = n
     }
     render()
     const ro = new ResizeObserver(render)
@@ -506,7 +532,6 @@ export function ScreenDetailModal() {
     <div
       className="sd-overlay"
       onClick={(e) => {
-        console.log('[SD] overlay click', (e.target as HTMLElement).className)
         if (e.target === e.currentTarget) setOpen(false)
       }}
     >

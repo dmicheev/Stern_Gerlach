@@ -21,6 +21,8 @@ export function QuantumField() {
 
   const header = quantum?.header ?? null
   const lastKey = useRef('')
+  /** wall-clock time of the last heatmap evaluation (throttle: ~16 fps) */
+  const lastCompute = useRef(0)
 
   useEffect(() => {
     if (!header) return
@@ -41,6 +43,12 @@ export function QuantumField() {
     const t = Math.min(header.tTotal, useStore.getState().tCurrent)
     const key = `${t.toFixed(4)}|${quantum.branches.length}`
     if (key === lastKey.current) return
+    // the grid is cols*rows*O(pairs) evalRho calls — too heavy for every
+    // animation frame; ~60ms between updates keeps the heatmap smooth at a
+    // fraction of the cost
+    const now = performance.now()
+    if (now - lastCompute.current < 60) return
+    lastCompute.current = now
     lastKey.current = key
 
     let max = 1e-12

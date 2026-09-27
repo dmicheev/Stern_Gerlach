@@ -1,6 +1,3 @@
-/** Visual scale helpers (physics in SI meters, scene unit = 1 mm). */
-export const M_TO_UNITS = 1000
-
 /** adaptive z-range of the detector histogram / square screen plane (half-side, mm) */
 export const Z_RANGE_MIN = 120 // square screen side = 2*range >= 240 mm
 export const Z_RANGE_MAX = 400

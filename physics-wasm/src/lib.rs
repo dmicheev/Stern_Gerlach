@@ -171,7 +171,8 @@ fn branch_kick(app: &Apparatus, v_mean: f64) -> (f64, f64) {
 /// Build x-sorted caches with beam routing and transverse centers.
 fn build_tree(apps: &[Apparatus], v_mean: f64) -> (Vec<AppCache>, HashMap<String, Vec<usize>>) {
     let mut order: Vec<usize> = (0..apps.len()).collect();
-    order.sort_by(|&i, &j| apps[i].x_start.partial_cmp(&apps[j].x_start).unwrap());
+    // total_cmp: never panics, NaN orders deterministically (config boundary hardening)
+    order.sort_by(|&i, &j| apps[i].x_start.total_cmp(&apps[j].x_start));
 
     let mut caches: Vec<Option<AppCache>> = (0..apps.len()).map(|_| None).collect();
     let mut centers: HashMap<usize, (f64, f64)> = HashMap::new();
@@ -366,7 +367,7 @@ pub fn simulate(cfg: &Config) -> Result<SimOutput, String> {
         let mut i_sample = 0usize;
         let mut t = t0;
 
-        let mut record = |px: f64, py: f64, pz: f64, theta: f64, sign: i8,
+        let record = |px: f64, py: f64, pz: f64, theta: f64, sign: i8,
                           hero_pos: &mut Vec<f64>, hero_theta: &mut Vec<f64>,
                           hero_sign: &mut Vec<i8>, i_sample: &mut usize| {
             if !is_hero || *i_sample >= N_T {
@@ -389,7 +390,7 @@ pub fn simulate(cfg: &Config) -> Result<SimOutput, String> {
             let pz = p_z;
 
             // RK4 on (y, z, vy, vz); x evaluated analytically
-            let mut eval = |h: f64, yy: f64, zz: f64, out: &mut [f64; 3]| {
+            let eval = |h: f64, yy: f64, zz: f64, out: &mut [f64; 3]| {
                 let x_now = p_vx * (t - t0 + h);
                 out[0] = 0.0;
                 out[1] = 0.0;
@@ -581,7 +582,7 @@ pub fn encode(out: &SimOutput) -> Vec<u8> {
     while buf.len() % 8 != 0 {
         buf.push(0);
     }
-    let mut push_f64 = |v: &[f64], buf: &mut Vec<u8>| {
+    let push_f64 = |v: &[f64], buf: &mut Vec<u8>| {
         for x in v {
             buf.extend_from_slice(&x.to_le_bytes());
         }
