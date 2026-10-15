@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import i18n from '../i18n'
 import type { Apparatus, PhysicsMode, SimulationConfig, SimResult, SourceParams } from '../physics/types'
 import type { QuantumBranch, QuantumHeader } from '../physics/quantum'
 import { HENSEN_ANGLES, type BellConfig, type BellResult } from '../physics/bell'
@@ -179,6 +180,7 @@ export const useStore = create<Store>((set) => ({
 
   setLang: (lang) => {
     localStorage.setItem('sg-lang', lang)
+    void i18n.changeLanguage(lang)
     set({ lang })
   },
   setKind: (kind) =>

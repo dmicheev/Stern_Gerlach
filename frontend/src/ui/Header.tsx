@@ -46,6 +46,7 @@ export function Header() {
 
         <select
           className="preset-select"
+          aria-label={t('preset')}
           defaultValue=""
           onChange={(e) => {
             if (kind === 'bell') {
@@ -74,6 +75,7 @@ export function Header() {
 
         <button
           className={`btn small annot-toggle ${showAnnotations ? 'btn-active' : ''}`}
+          aria-pressed={showAnnotations}
           onClick={() => setShowAnnotations(!showAnnotations)}
           title={t('annot.toggle')}
         >
@@ -81,8 +83,8 @@ export function Header() {
         </button>
 
         <div className="lang-switch">
-          <button className={lang === 'ru' ? 'active' : ''} onClick={() => setLang('ru')}>RU</button>
-          <button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
+          <button aria-pressed={lang === 'ru'} className={lang === 'ru' ? 'active' : ''} onClick={() => setLang('ru')}>RU</button>
+          <button aria-pressed={lang === 'en'} className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button>
         </div>
       </div>
     </header>

@@ -5,6 +5,7 @@ import { useStore } from '../state/store'
 import { M_TO_UNITS } from '../physics/constants'
 import { useTranslation } from 'react-i18next'
 import { spinColor } from './ApparatusModel'
+import { fromCanvas } from './pointerGuard'
 import { Annotation } from './Annotation'
 import { sampleScreenHits, maxAxisExtent } from '../physics/quantum'
 import { adaptiveZRangeMm } from '../physics/scale'
@@ -179,11 +180,13 @@ export function DetectorScreen() {
         rotation={[0, -Math.PI / 2, 0]}
         onClick={(e) => {
           e.stopPropagation()
+          if (!fromCanvas(e)) return
           setBellStation(null)
           openDetail(true)
         }}
         onPointerOver={(e) => {
           e.stopPropagation()
+          if (!fromCanvas(e)) return
           document.body.style.cursor = 'pointer'
         }}
         onPointerOut={() => {
@@ -197,11 +200,13 @@ export function DetectorScreen() {
       <mesh
         onClick={(e) => {
           e.stopPropagation()
+          if (!fromCanvas(e)) return
           setBellStation(null)
           openDetail(true)
         }}
         onPointerOver={(e) => {
           e.stopPropagation()
+          if (!fromCanvas(e)) return
           document.body.style.cursor = 'pointer'
         }}
         onPointerOut={() => {

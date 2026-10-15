@@ -15,6 +15,7 @@ export function Hint({ id }: { id: string }) {
   const [pinned, setPinned] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const iconRef = useRef<HTMLSpanElement>(null)
+  const popId = useRef(`hint-pop-${Math.random().toString(36).slice(2, 8)}`)
   const lang = useStore((s) => s.lang)
   const content: HintContent | undefined = hintsContent[lang]?.[id]
 
@@ -65,6 +66,7 @@ export function Hint({ id }: { id: string }) {
       tabIndex={0}
       aria-label={content.title}
       aria-expanded={open}
+      aria-describedby={open ? popId.current : undefined}
       onMouseEnter={() => {
         place()
         setOpen(true)
@@ -99,7 +101,9 @@ export function Hint({ id }: { id: string }) {
         pos &&
         createPortal(
           <div
+            id={popId.current}
             className="hint-pop"
+            role="tooltip"
             style={{ left: pos.left, top: pos.top, maxWidth: POP_W }}
             onMouseLeave={() => {
               if (!pinned) setOpen(false)

@@ -1,9 +1,11 @@
 import { Html } from '@react-three/drei'
 import { Hint } from '../ui/Hint'
+import './annotClamp'
 
 /**
  * Educational annotation card anchored to a 3D device (furnace, magnet, screen…).
  * Shows title, one-line description and an optional "?" linking to the hint DB.
+ * A shared screen-space clamp keeps cards over the canvas, out of UI panels.
  */
 export function Annotation({
   position,
@@ -17,7 +19,7 @@ export function Annotation({
   hintId?: string
 }) {
   return (
-    <Html position={position} center distanceFactor={undefined} zIndexRange={[40, 0]}>
+    <Html position={position} center distanceFactor={undefined} zIndexRange={[40, 0]} style={{ pointerEvents: 'none' }}>
       <div className="annot">
         <div className="annot-title">
           {title}

@@ -21,7 +21,12 @@ export function SourcePanel() {
       <Section title={t('mode')}>
         <div className="mode-row">
           {(['classical', 'semiclassical', 'quantum'] as PhysicsMode[]).map((m) => (
-            <button key={m} className={`btn mode-btn ${mode === m ? 'btn-active' : ''}`} onClick={() => setMode(m)}>
+            <button
+              key={m}
+              className={`btn mode-btn ${mode === m ? 'btn-active' : ''}`}
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+            >
               {t(`modes.${m}`)}
             </button>
           ))}
@@ -40,14 +45,14 @@ export function SourcePanel() {
       </Section>
 
       <Section title={t('source')}>
-        <Slider label={t('vMean')} value={source.vMean} min={200} max={800} step={10} display={`${source.vMean.toFixed(0)} m/s`} onChange={(v) => updateSource({ vMean: v })} hint="vMean" />
-        <Slider label={t('vSigma')} value={source.vSigma} min={5} max={100} step={5} display={`±${source.vSigma.toFixed(0)} m/s`} onChange={(v) => updateSource({ vSigma: v })} hint="vSigma" />
+        <Slider label={t('vMean')} value={source.vMean} min={200} max={800} step={10} display={`${source.vMean.toFixed(0)} ${t('mPerS')}`} onChange={(v) => updateSource({ vMean: v })} hint="vMean" />
+        <Slider label={t('vSigma')} value={source.vSigma} min={5} max={100} step={5} display={`±${source.vSigma.toFixed(0)} ${t('mPerS')}`} onChange={(v) => updateSource({ vSigma: v })} hint="vSigma" />
         <Slider label={t('aperture')} value={source.aperture * 1000} min={0.1} max={2} step={0.05} display={`${(source.aperture * 1000).toFixed(2)} ${t('mm')}`} onChange={(v) => updateSource({ aperture: v / 1000 })} hint="aperture" />
-        <Slider label={t('divergence')} value={source.divergence * 1000} min={0.2} max={5} step={0.1} display={`${(source.divergence * 1000).toFixed(1)} mrad`} onChange={(v) => updateSource({ divergence: v / 1000 })} hint="divergence" />
-        <Slider label={t('screenX')} value={screenX * 100} min={40} max={140} step={1} display={`${screenX.toFixed(2)} m`} onChange={(v) => setScreenX(v / 100)} hint="screenX" />
+        <Slider label={t('divergence')} value={source.divergence * 1000} min={0.2} max={5} step={0.1} display={`${(source.divergence * 1000).toFixed(1)} ${t('mrad')}`} onChange={(v) => updateSource({ divergence: v / 1000 })} hint="divergence" />
+        <Slider label={t('screenX')} value={screenX * 100} min={40} max={140} step={1} display={`${screenX.toFixed(2)} ${t('m')}`} onChange={(v) => setScreenX(v / 100)} hint="screenX" />
         <div className="blocked-row">
           <HintLabel id="particles">{t('particles')}</HintLabel>
-          <select value={particleCount} onChange={(e) => setParticleCount(parseInt(e.target.value))}>
+          <select aria-label={t('particles')} value={particleCount} onChange={(e) => setParticleCount(parseInt(e.target.value))}>
             {[2000, 8000, 20000, 50000].map((n) => (
               <option key={n} value={n}>
                 {n.toLocaleString()}

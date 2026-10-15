@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
 import { useTranslation } from 'react-i18next'
 import { Annotation } from './Annotation'
+import { fromCanvas } from './pointerGuard'
 import { useStore } from '../state/store'
 import { M_TO_UNITS } from '../physics/constants'
 import { BELL_LAYOUT } from '../physics/bell'
@@ -153,11 +154,13 @@ function BellStation({ side, label, color }: StationProps) {
         <mesh
           onClick={(e) => {
             e.stopPropagation()
+            if (!fromCanvas(e)) return
             useStore.getState().setBellDetailStation(side)
             useStore.getState().setScreenDetailOpen(true)
           }}
           onPointerOver={(e) => {
             e.stopPropagation()
+            if (!fromCanvas(e)) return
             document.body.style.cursor = 'pointer'
           }}
           onPointerOut={() => {

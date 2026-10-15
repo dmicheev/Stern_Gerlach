@@ -48,6 +48,8 @@ export function Slider({ label, value, min, max, step, display, onChange, hint }
       <span className="slider-label">{label}</span>
       <input
         type="range"
+        aria-label={label}
+        aria-valuetext={display}
         min={min}
         max={max}
         step={step}

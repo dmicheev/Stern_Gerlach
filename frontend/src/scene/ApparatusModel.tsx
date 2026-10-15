@@ -134,7 +134,7 @@ export function ApparatusModel({ apparatus, cy = 0, cz = 0 }: { apparatus: Appar
           <Annotation
             position={[L / 2, 0, gapU + 62]}
             title={`${t('annot.apparatus')} θ=${apparatus.angleDeg.toFixed(0)}°`}
-            desc={`G = ${apparatus.gradient.toFixed(0)} Т/м · ${t('annot.apparatusDesc')}`}
+            desc={`G = ${apparatus.gradient.toFixed(0)} ${t('tPerM')} · ${t('annot.apparatusDesc')}`}
             hintId="gradient"
           />
         )}

@@ -13,20 +13,31 @@ import type { Vector3 } from 'three'
 /** per-mode framing: cascade spans the full beamline, bell is centered on the source */
 const CAM: Record<'cascade' | 'bell', { pos: [number, number, number]; tgt: [number, number, number] }> = {
   cascade: { pos: [-140, -520, 360], tgt: [320, 0, 50] },
-  bell: { pos: [0, -620, 410], tgt: [0, 0, 0] },
+  bell: { pos: [0, -1050, 700], tgt: [0, 0, 0] },
 }
 
 function CameraRig({ kind }: { kind: 'cascade' | 'bell' }) {
   const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls) as unknown as { target: Vector3; update: () => void } | null
   useEffect(() => {
     const { pos, tgt } = CAM[kind]
-    camera.position.set(...pos)
+    let p: [number, number, number] = pos
+    if (kind === 'bell') {
+      const panelW = size.width <= 1250 ? 336 : 368
+      const freeHalf = (size.width - 24 - 2 * panelW) / 2 - 60
+      const k = size.width / (2 * Math.tan(((40 / 2) * Math.PI) / 180) * (size.width / size.height))
+      const need = (k * 310) / freeHalf
+      const base = Math.hypot(pos[0], pos[1], pos[2])
+      const d = Math.max(base, need)
+      p = [(pos[0] * d) / base, (pos[1] * d) / base, (pos[2] * d) / base]
+    }
+    camera.position.set(...p)
     if (controls) {
       controls.target.set(...tgt)
       controls.update()
     }
-  }, [kind, camera, controls])
+  }, [kind, camera, controls, size.width, size.height])
   return null
 }
 
@@ -34,6 +45,7 @@ export function Experience() {
   const kind = useStore((s) => s.kind)
   return (
     <Canvas
+      eventPrefix="client"
       camera={{ position: [-140, -520, 360], fov: 40, near: 1, far: 8000 }}
       gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
       dpr={[1, 2]}

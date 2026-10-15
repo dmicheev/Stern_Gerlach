@@ -32,7 +32,7 @@ export function TimelinePanel() {
   return (
     <footer className="bottombar">
       <button
-        className="btn"
+        className={`btn btn-primary ${playing ? 'btn-active' : ''}`}
         onClick={() => {
           if (!playing && tTotal && tCurrent >= tTotal - 1e-9) {
             // restart from the beginning when at the end
@@ -60,6 +60,8 @@ export function TimelinePanel() {
       <input
         type="range"
         className="scrub"
+        aria-label={t('time')}
+        aria-valuetext={`${(tCurrent * 1000).toFixed(1)} ${t('ms')}`}
         min={0}
         max={Math.max(tTotal, 0.0001)}
         step={tTotal / 600}

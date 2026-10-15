@@ -23,7 +23,7 @@ export function BellPanel() {
           value={bell[key][i]}
           min={-180}
           max={180}
-          step={0.5}
+          step={0.1}
           display={`${bell[key][i].toFixed(1)}°`}
           onChange={(v) => {
             const arr = [...bell[key]] as [number, number]
@@ -88,7 +88,7 @@ export function BellPanel() {
         />
         <div className="blocked-row">
           <HintLabel id="bellPairs">{t('bell.pairs')}</HintLabel>
-          <select value={bell.pairs} onChange={(e) => updateBell({ pairs: parseInt(e.target.value) })}>
+          <select aria-label={t('bell.pairs')} value={bell.pairs} onChange={(e) => updateBell({ pairs: parseInt(e.target.value) })}>
             {[500, 2000, 10000, 50000, 100000].map((n) => (
               <option key={n} value={n}>
                 {n.toLocaleString()}

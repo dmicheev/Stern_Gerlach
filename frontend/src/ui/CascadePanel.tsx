@@ -24,6 +24,7 @@ export function CascadePanel() {
           </button>
         }
       >
+        {sorted.length === 0 && <div className="mode-desc">{t('emptyCascade')}</div>}
         {sorted.map((a, i) => {
           const [r, g, b] = spinColor((a.angleDeg * Math.PI) / 180, 1)
           const active = selectedId === a.id
@@ -44,6 +45,7 @@ export function CascadePanel() {
               <div className="blocked-row">
                 <HintLabel id="beam">{t('kind')}</HintLabel>
                 <select
+                  aria-label={t('kind')}
                   value={kind}
                   onChange={(e) => updateApparatus(a.id, { kind: e.target.value as typeof kind })}
                 >
@@ -75,6 +77,7 @@ export function CascadePanel() {
               <div className="blocked-row">
                 <HintLabel id="beam">{t('beam')}</HintLabel>
                 <select
+                  aria-label={t('beam')}
                   value={a.attachTo}
                   onChange={(e) => updateApparatus(a.id, { attachTo: e.target.value })}
                 >
@@ -116,7 +119,7 @@ export function CascadePanel() {
                 min={12}
                 max={Math.max(20, (config.screenX - 0.12) * 100)}
                 step={1}
-                display={`${a.xStart.toFixed(2)} m`}
+                display={`${a.xStart.toFixed(2)} ${t('m')}`}
                 onChange={(v) => updateApparatus(a.id, { xStart: v / 100 })}
               />
               <Slider
@@ -143,7 +146,7 @@ export function CascadePanel() {
                 min={100}
                 max={5000}
                 step={50}
-                display={`${(a.gradient / 1000).toFixed(1)}кТ/м`.replace('к', 'k')}
+                display={`${(a.gradient / 1000).toFixed(1)} ${t('kTPerM')}`}
                 onChange={(v) => updateApparatus(a.id, { gradient: v })}
               />
               <Slider
@@ -169,6 +172,7 @@ export function CascadePanel() {
               <div className="blocked-row">
                 <HintLabel id="blocked">{t('blocked')}</HintLabel>
                 <select
+                  aria-label={t('blocked')}
                   value={a.blockedPort ?? ''}
                   onChange={(e) => updateApparatus(a.id, { blockedPort: (e.target.value || null) as 'up' | 'down' | null })}
                 >

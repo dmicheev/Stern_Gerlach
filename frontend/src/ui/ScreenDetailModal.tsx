@@ -72,14 +72,43 @@ export function ScreenDetailModal() {
   const histRef = useRef<HTMLCanvasElement>(null)
   const bellScatterRef = useRef<HTMLCanvasElement>(null)
   const bellHistRef = useRef<HTMLCanvasElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
+    const restore = document.activeElement as HTMLElement | null
+    const modal = ref.current
+    const focusables = () =>
+      modal
+        ? [...modal.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+            (el) => !el.hasAttribute('disabled'),
+          )
+        : []
+    focusables()[0]?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+      if (e.key !== 'Tab' || !modal) return
+      const list = focusables()
+      if (!list.length) return
+      const first = list[0]
+      const last = list[list.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && (active === first || !modal.contains(active))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (active === last || !modal.contains(active))) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      restore?.focus?.()
+    }
   }, [open, setOpen])
 
   // unified hit source (same data as the 3D screen texture)
@@ -493,11 +522,11 @@ export function ScreenDetailModal() {
     return (
       <div
         className="sd-overlay"
-        onClick={(e) => {
+        onPointerDown={(e) => {
           if (e.target === e.currentTarget) setOpen(false)
         }}
       >
-        <div className="sd-modal">
+        <div className="sd-modal" ref={ref} role="dialog" aria-modal="true" aria-label={t('sd.bellTitle', { s: stationName })}>
           <div className="sd-head">
             <span className="sd-title">{t('sd.bellTitle', { s: stationName })}</span>
             <button className="btn small" onClick={() => setOpen(false)} aria-label={t('sd.close')}>
@@ -531,11 +560,11 @@ export function ScreenDetailModal() {
   return (
     <div
       className="sd-overlay"
-      onClick={(e) => {
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) setOpen(false)
       }}
     >
-      <div className="sd-modal">
+      <div className="sd-modal" ref={ref} role="dialog" aria-modal="true" aria-label={t('sd.title')}>
         <div className="sd-head">
           <span className="sd-title">{t('sd.title')}</span>
           <button className="btn small" onClick={() => setOpen(false)} aria-label={t('sd.close')}>
