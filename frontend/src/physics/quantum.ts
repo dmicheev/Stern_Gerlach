@@ -957,18 +957,21 @@ export function sampleScreenHits(
     const states = branchStatesAt(q, frameIdx * header.timePerFrame)
     // pick the contributing branch proportionally to its local z-density,
     // draw y from it, then evaluate the local spinor at (y, z): the y-factor
-    // carries which-path information for transverse (e.g. Y-axis) splits
-    let bestW = -1
-    let bestIdx = 0
+    // carries which-path information for transverse (e.g. Y-axis) splits.
+    // Proportional (not argmax): branches can overlap in z yet differ in y
+    // (e.g. a 90° magnet keeps the parent's z-kick), where argmax would
+    // collapse every hit onto a single branch.
+    let wSum = 0
+    const wAcc = new Float64Array(states.length)
     for (let i = 0; i < states.length; i++) {
       const st = states[i]
       const w2 = st.aRe * st.aRe + st.aIm * st.aIm
-      const bw = w2 * Math.exp(-((z - st.cz) ** 2) / (2 * st.sz * st.sz))
-      if (bw > bestW) {
-        bestW = bw
-        bestIdx = i
-      }
+      wSum += w2 * Math.exp(-((z - st.cz) ** 2) / (2 * st.sz * st.sz))
+      wAcc[i] = wSum
     }
+    const uy = rng.nextFloat() * wSum
+    let bestIdx = 0
+    while (bestIdx < states.length - 1 && wAcc[bestIdx] < uy) bestIdx++
     const best = states[bestIdx]
     const y = best.cy + best.sy * rng.normal()
     ys[k] = y

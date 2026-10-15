@@ -176,6 +176,40 @@ describe('quantum screen hits', () => {
     expect([...a.zs]).toEqual([...b.zs])
     expect([...a.times]).toEqual([...b.times])
   })
+
+  it('filter + 90° superposition: hits stay bimodal when branches overlap in z', () => {
+    // "Фильтр спина + суперпозиция" preset: the 90° magnet preserves the
+    // parent's z-kick, so both output branches share the same z — the y-draw
+    // must sample branches proportionally, not take the argmax (regression)
+    const a1 = apparatus({ xStart: 0.2, angleDeg: 0, blockedPort: 'down' })
+    const a2 = apparatus({ xStart: 0.44, angleDeg: 90, attachTo: `${a1.id}:up` })
+    const cfg = config({ apparatuses: [a1, a2], screenX: 0.78 })
+    const q = simulateQuantum(cfg)
+    expect(q.branches).toHaveLength(2)
+    const f = screenFrame(cfg.apparatuses, cfg.source.vMean)
+    const hits = sampleScreenHits(q, cfg.screenX, 6000, 5, f.theta)
+    const N = 6000
+    let up = 0
+    let down = 0
+    let middle = 0
+    for (let i = 0; i < N; i++) {
+      const { s } = toScreenFrame(f, hits.ys[i], hits.zs[i])
+      if (s > 0.002) up++
+      else if (s < -0.002) down++
+      else middle++
+    }
+    // two separated beams, both populated ~50/50, no merged middle lobe
+    expect(up / N).toBeGreaterThan(0.35)
+    expect(down / N).toBeGreaterThan(0.35)
+    expect(middle / N).toBeLessThan(0.15)
+    // spin outcomes follow the branch: + along the up lobe, − along the down one
+    let agree = 0
+    for (let i = 0; i < N; i++) {
+      const { s } = toScreenFrame(f, hits.ys[i], hits.zs[i])
+      if (Math.sign(s) === hits.signs[i]) agree++
+    }
+    expect(agree / N).toBeGreaterThan(0.95)
+  })
 })
 
 describe('quantum rotated detector', () => {
