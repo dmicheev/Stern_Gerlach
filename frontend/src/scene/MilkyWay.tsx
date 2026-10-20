@@ -8,11 +8,11 @@ import * as THREE from 'three'
  * backdrop stays subtle against the apparatus ("не ярко").
  *
  * Galaxy frame (object space): the galactic plane is y = 0, the bulge lies
- * toward +X. The mesh is rotated by +90° around the world X axis, which maps
- * the galactic plane onto the world X-Y plane — the same plane the beamline
- * apparatus lies in, so the band streaks parallel to the instrument and the
- * bulge sits behind the screen end (+X). The material ignores scene fog and
- * writes no depth — it is a pure backdrop.
+ * toward +X. The mesh is rotated by +90° around the world Z axis, which maps
+ * the galactic plane onto the world Y-Z plane — perpendicular to the beamline
+ * (the beam pierces the band at a right angle), with the bulge glowing toward
+ * world +Y. The material ignores scene fog and writes no depth — it is a pure
+ * backdrop.
  */
 
 const vertexShader = /* glsl */ `
@@ -97,9 +97,10 @@ export function MilkyWay({ intensity = 0.16 }: { intensity?: number }) {
     <mesh
       material={material}
       renderOrder={-10}
-      // +90° about X: object y=0 plane → world X-Y plane (parallel to the
-      // beamline), bulge stays toward +X
-      rotation={[Math.PI / 2, 0, 0]}
+      // +90° about Z: object y=0 plane → world Y-Z plane (normal along the
+      // beam axis X → the band crosses the apparatus perpendicular),
+      // bulge → world +Y
+      rotation={[0, 0, Math.PI / 2]}
       frustumCulled={false}
     >
       <sphereGeometry args={[6000, 48, 32]} />
