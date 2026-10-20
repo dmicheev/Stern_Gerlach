@@ -7,6 +7,7 @@ import { TimelineDriver } from './TimelineDriver'
 import { Particles } from './Particles'
 import { QuantumField } from './QuantumField'
 import { BellScene } from './BellScene'
+import { MilkyWay } from './MilkyWay'
 import { useStore } from '../state/store'
 import type { Vector3 } from 'three'
 
@@ -55,6 +56,9 @@ export function Experience() {
     >
       <color attach="background" args={['#14203a']} />
       <fog attach="fog" args={['#14203a', 2000, 4600]} />
+
+      {/* dim procedural Milky Way band behind everything (no fog, no depth) */}
+      <MilkyWay />
 
       <ambientLight intensity={0.9} />
       <hemisphereLight intensity={0.8} color="#9dc0ff" groundColor="#3a4a5c" />
