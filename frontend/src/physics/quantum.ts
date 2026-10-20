@@ -675,14 +675,20 @@ function branchStatesAt(q: QuantumEnvelope, t: number): BState[] {
   }))
 }
 
-/** y-axis overlap factor of two packets (marginalization over y), complex */
-function overlapAxis(ci: number, cj: number, vi: number, vj: number, sigma: number): { re: number; im: number } {
+/**
+ * y-axis overlap factor of two packets (marginalization over y), complex:
+ * ∫ψ_i(y)ψ_j*(y)dy for ψ ∝ e^{iS/ħ}·e^{ik(y−c)}, k = m·v/ħ.
+ * With the Gaussian centered at c̄ = (ci+cj)/2 the phase collects
+ * (k_i−k_j)·c̄ − k_i·ci + k_j·cj — the code below is algebraically identical.
+ * Exported for the independent-reference tests.
+ */
+export function overlapAxis(ci: number, cj: number, vi: number, vj: number, sigma: number): { re: number; im: number } {
   const d = ci - cj
   const ki = (AG_MASS * vi) / HBAR
   const kj = (AG_MASS * vj) / HBAR
   const dk = ki - kj
   const mag = Math.exp((-d * d) / (8 * sigma * sigma) - (dk * dk * sigma * sigma) / 2)
-  const ph = (-d * (ki + kj)) / 2
+  const ph = (dk * (ci + cj)) / 2 - ki * ci + kj * cj
   return { re: mag * Math.cos(ph), im: mag * Math.sin(ph) }
 }
 
@@ -806,19 +812,61 @@ export interface ScreenHits {
   times: Float64Array
   ys: Float64Array
   zs: Float64Array
-  /** final spin axis angle (rad, NaN = unmeasured) per hit */
+  /** spin measurement axis (rad) per hit — the axis the Born outcome refers to */
   thetas: Float64Array
   signs: Int8Array
 }
 
+/** coherence grouping of the branches: which indices are summed as one pure state */
+interface CohGroups {
+  /** branches sharing a cohId AND a defined spinor — amplitudes add coherently */
+  polarized: number[][]
+  /** never-measured branches (spinSign = 0): unpolarized, contribute ½/½ incoherently */
+  mixed: number[]
+}
+
+const groupCache = new WeakMap<object, CohGroups>()
+
+function getGroups(branches: QuantumBranch[]): CohGroups {
+  const cached = groupCache.get(branches)
+  if (cached) return cached
+  const byId = new Map<string, number[]>()
+  const mixed: number[] = []
+  for (let i = 0; i < branches.length; i++) {
+    const b = branches[i]
+    if (b.spinSign === 0 || Number.isNaN(b.spinTheta)) {
+      mixed.push(i)
+      continue
+    }
+    const list = byId.get(b.cohId) ?? []
+    list.push(i)
+    byId.set(b.cohId, list)
+  }
+  const groups: CohGroups = { polarized: [...byId.values()], mixed }
+  groupCache.set(branches, groups)
+  return groups
+}
+
 /**
- * Monte-Carlo detector sampling from the COHERENT density:
- * arrival times follow the flux through the screen plane (for packets sharing
- * v_x the current j_x reduces to v_x·ρ — the x-marginal of the coherent
- * density with the transverse overlap factors), z-positions are drawn from the
- * coherent z-marginal via a numeric CDF per frame, and the spin outcome is a
- * Born sample of the local spinor measured along the screen-frame axis.
- * Deterministic for a given seed.
+ * Monte-Carlo detector sampling from the COHERENT density ρ of the branch
+ * superposition (the same ρ that evalRho renders — one shared kernel):
+ *
+ *  1. arrival times follow the flux through the screen plane (j_x = v_x·ρ
+ *     for packets sharing v_x) — a numeric CDF over t;
+ *  2. z is drawn from the coherent z-marginal ρ(x=screenX, z) = ∫ρ dy
+ *     (analytic y-overlap per pair), via a per-frame numeric CDF;
+ *  3. y is drawn from the conditional ρ(y | z) ∝ ρ(y, z), built per hit on a
+ *     per-frame cached grid from the EXPLICIT pair decomposition of the joint
+ *     density — interference terms included, normalized over the grid;
+ *  4. the spin outcome is a Born sample of the local state
+ *     |Ψ(y,z)⟩ = Σ_g Σ_{i∈g} a_iψ_i(y,z)|χ_i⟩ (amplitudes add coherently
+ *     within a cohId group, incoherently across groups — mixed states never
+ *     interfere); P(±|y,z) = |⟨χ_f,±|Ψ⟩|²/⟨Ψ|Ψ⟩ along the screen-frame axis.
+ *
+ * The joint sampling target is the grid-cell-averaged density (y draws are
+ * uniformized within their cell) — the physically resolvable detection
+ * statistics; cells are ≪ σ, and sub-cell fringes (λ_f ~ nm for silver) are
+ * averaged exactly as a real screen would. Deterministic for a given seed.
  */
 export function sampleScreenHits(
   q: QuantumEnvelope,
@@ -830,6 +878,7 @@ export function sampleScreenHits(
   const rng = new Pcg32(seed >>> 0, 777n)
   const { header } = q
   const pairs = getPairs(q.branches)
+  const groups = getGroups(q.branches)
 
   // arrival-time CDF from the coherent x-flux at the screen
   const flux = (t: number) => {
@@ -865,16 +914,21 @@ export function sampleScreenHits(
   }
   const total = cdf[M - 1] || 1e-12
 
-  // per-frame z-marginal CDF (lazy): coherent density over z at the screen x
+  // per-frame coherent z-marginal CDF: ρ(x=screenX, z) — evaluated by the same
+  // pair kernel as the rendering (evalRho), so display and sampling agree
   const MZ = 512
-  const frameCdf = new Map<number, { zs: Float64Array; cdf: Float64Array }>()
-  const zCdfFor = (frameIdx: number) => {
+  interface ZTable {
+    zs: Float64Array
+    cdf: Float64Array
+    zLo: number
+    dz: number
+  }
+  const frameCdf = new Map<number, ZTable>()
+  const zCdfFor = (frameIdx: number): ZTable => {
     const hit = frameCdf.get(frameIdx)
     if (hit) return hit
     const t = frameIdx * header.timePerFrame
     const states = branchStatesAt(q, t)
-    const zs = new Float64Array(MZ)
-    const cdfZ = new Float64Array(MZ)
     let zLo = Infinity
     let zHi = -Infinity
     for (const st of states) {
@@ -885,49 +939,96 @@ export function sampleScreenHits(
       zLo = header.zMin
       zHi = header.zMax
     }
+    const zs = new Float64Array(MZ)
+    const cdfZ = new Float64Array(MZ)
+    const dz = (zHi - zLo) / MZ
     let acc = 0
     for (let j = 0; j < MZ; j++) {
-      const z = zLo + ((zHi - zLo) * (j + 0.5)) / MZ
+      const z = zLo + (j + 0.5) * dz
       zs[j] = z
-      let sRe = 0
-      for (const pr of pairs) {
-        const si = states[pr.i]
-        const sj = states[pr.j]
-        const oy = overlapAxis(si.cy, sj.cy, si.vy, sj.vy, (si.sy + sj.sy) / 2)
-        const dx = (screenX - si.cx) / si.sx
-        const dxj = (screenX - sj.cx) / sj.sx
-        const gx = Math.exp(-(dx * dx + dxj * dxj) / 4)
-        const dz = (z - si.cz) / si.sz
-        const dzj = (z - sj.cz) / sj.sz
-        const gz = Math.exp(-(dz * dz + dzj * dzj) / 4)
-        const kz = (AG_MASS * (si.vz * (z - si.cz) - sj.vz * (z - sj.cz))) / HBAR
-        const phz = si.ph - sj.ph + kz
-        const cph = Math.cos(phz)
-        const sph = Math.sin(phz)
-        const wRe = oy.re * cph - oy.im * sph
-        const wIm = oy.re * sph + oy.im * cph
-        const factor = pr.i === pr.j ? 1 : 2
-        sRe += (factor * gx * gz * (pr.cRe * wRe - pr.cIm * wIm)) / (2 * Math.PI * si.sz * si.sx)
-      }
-      const p = Math.max(0, sRe)
-      acc += p
+      const p = evalRho(q, screenX, z, t).rho
+      // midpoint cell weight; round-off-level negatives are clamped for the
+      // CDF only (significant negativity is asserted by the density tests)
+      acc += p > 0 && Number.isFinite(p) ? p : 0
       cdfZ[j] = acc
     }
-    const entry = { zs, cdf: cdfZ }
+    const entry: ZTable = { zs, cdf: cdfZ, zLo, dz }
     frameCdf.set(frameIdx, entry)
     return entry
   }
 
+  // per-frame joint-density tables in y: ρ(y,z) = Σ_i D_i Gy_i(y)Gz_i(z)
+  //   + 2Re Σ_{i<j} C_ij Φy_ij(y)Φz_ij(z), the explicit-y form of the SAME
+  // density evalRho marginalizes analytically. The pair order matches getPairs.
+  const MY = 192
+  interface YTables {
+    ys: Float64Array
+    dy: number
+    /** per branch: |ψ_i(y)|² shape, exp(−(y−cy_i)²/(2σy_i²)) */
+    diag: Float64Array[]
+    /** per cross pair: Re/Im of exp(−(y−ci)²/(4σ²)−(y−cj)²/(4σ²))·e^{iκ_y(y)} */
+    pre: Float64Array[]
+    pim: Float64Array[]
+  }
+  const frameY = new Map<number, YTables>()
+  const yTablesFor = (frameIdx: number): YTables => {
+    const hit = frameY.get(frameIdx)
+    if (hit) return hit
+    const states = branchStatesAt(q, frameIdx * header.timePerFrame)
+    let yLo = Infinity
+    let yHi = -Infinity
+    for (const st of states) {
+      yLo = Math.min(yLo, st.cy - 5 * st.sy)
+      yHi = Math.max(yHi, st.cy + 5 * st.sy)
+    }
+    if (!Number.isFinite(yLo)) {
+      yLo = -1
+      yHi = 1
+    }
+    const ys = new Float64Array(MY)
+    const dy = (yHi - yLo) / MY
+    for (let m = 0; m < MY; m++) ys[m] = yLo + (m + 0.5) * dy
+    const diag: Float64Array[] = states.map((st) => {
+      const g = new Float64Array(MY)
+      const inv = 1 / (2 * st.sy * st.sy)
+      for (let m = 0; m < MY; m++) g[m] = Math.exp(-((ys[m] - st.cy) ** 2) * inv)
+      return g
+    })
+    const pre: Float64Array[] = []
+    const pim: Float64Array[] = []
+    for (const pr of pairs) {
+      if (pr.i === pr.j) continue
+      const si = states[pr.i]
+      const sj = states[pr.j]
+      const gr = new Float64Array(MY)
+      const gi = new Float64Array(MY)
+      for (let m = 0; m < MY; m++) {
+        const y = ys[m]
+        const env =
+          Math.exp(-((y - si.cy) ** 2) / (4 * si.sy * si.sy) - ((y - sj.cy) ** 2) / (4 * sj.sy * sj.sy))
+        const ky = (AG_MASS * (si.vy * (y - si.cy) - sj.vy * (y - sj.cy))) / HBAR
+        gr[m] = env * Math.cos(ky)
+        gi[m] = env * Math.sin(ky)
+      }
+      pre.push(gr)
+      pim.push(gi)
+    }
+    const entry: YTables = { ys, dy, diag, pre, pim }
+    frameY.set(frameIdx, entry)
+    return entry
+  }
+
   const times = new Float64Array(count)
-  const ys = new Float64Array(count)
+  const ysOut = new Float64Array(count)
   const zs = new Float64Array(count)
   const thetas = new Float64Array(count)
   const signs = new Int8Array(count)
 
   const chiF = spinor(frameThetaRad, 1)
+  const col = new Float64Array(MY)
 
   for (let k = 0; k < count; k++) {
-    // invert the arrival-time CDF
+    // 1. invert the arrival-time CDF
     const u = rng.nextFloat() * total
     let j = 1
     while (j < M - 1 && cdf[j] < u) j++
@@ -937,9 +1038,11 @@ export function sampleScreenHits(
       header.frameCount - 1,
       Math.max(0, Math.round(t / header.timePerFrame)),
     )
-    const { zs: zGrid, cdf: zCdf } = zCdfFor(frameIdx)
+
+    // 2. z from the coherent marginal (cell + uniform jitter = cell average)
+    const { zs: zGrid, cdf: zCdf, dz } = zCdfFor(frameIdx)
     const zTotal = zCdf[MZ - 1] || 1e-300
-    let z = zGrid[0]
+    let jz = 0
     {
       const uz = rng.nextFloat() * zTotal
       let lo = 0
@@ -949,64 +1052,135 @@ export function sampleScreenHits(
         if (zCdf[mid] < uz) lo = mid + 1
         else hi = mid
       }
-      z = zGrid[lo]
+      jz = lo
     }
+    const z = zGrid[jz] + (rng.nextFloat() - 0.5) * dz
     times[k] = t
     zs[k] = z
 
+    // 3. y from the conditional ρ(y | z): explicit joint density on the grid
     const states = branchStatesAt(q, frameIdx * header.timePerFrame)
-    // pick the contributing branch proportionally to its local z-density,
-    // draw y from it, then evaluate the local spinor at (y, z): the y-factor
-    // carries which-path information for transverse (e.g. Y-axis) splits.
-    // Proportional (not argmax): branches can overlap in z yet differ in y
-    // (e.g. a 90° magnet keeps the parent's z-kick), where argmax would
-    // collapse every hit onto a single branch.
-    let wSum = 0
-    const wAcc = new Float64Array(states.length)
-    for (let i = 0; i < states.length; i++) {
+    const yt = yTablesFor(frameIdx)
+    col.fill(0)
+    let crossIdx = 0
+    for (const pr of pairs) {
+      const si = states[pr.i]
+      if (pr.i === pr.j) {
+        const w2 = si.aRe * si.aRe + si.aIm * si.aIm
+        const c = w2 * Math.exp(-((z - si.cz) ** 2) / (2 * si.sz * si.sz))
+        if (c !== 0) {
+          const dg = yt.diag[pr.i]
+          for (let m = 0; m < MY; m++) col[m] += c * dg[m]
+        }
+      } else {
+        const sj = states[pr.j]
+        const pre = yt.pre[crossIdx]
+        const pim = yt.pim[crossIdx]
+        crossIdx++
+        // Φz_ij(z): envelope × spatial z phase of ψ_iψ_j*
+        const ez =
+          Math.exp(-((z - si.cz) ** 2) / (4 * si.sz * si.sz) - ((z - sj.cz) ** 2) / (4 * sj.sz * sj.sz))
+        const kz = (AG_MASS * (si.vz * (z - si.cz) - sj.vz * (z - sj.cz))) / HBAR
+        const zr = ez * Math.cos(kz)
+        const zi = ez * Math.sin(kz)
+        // total pair phase = (S_i − S_j)/ħ + spatial z phase; multiply by C_ij
+        const ph = si.ph - sj.ph
+        const cph = Math.cos(ph)
+        const sph = Math.sin(ph)
+        const wzr = zr * cph - zi * sph
+        const wzi = zr * sph + zi * cph
+        const Cr = pr.cRe * wzr - pr.cIm * wzi
+        const Ci = pr.cRe * wzi + pr.cIm * wzr
+        for (let m = 0; m < MY; m++) col[m] += 2 * (Cr * pre[m] - Ci * pim[m])
+      }
+    }
+    let y: number
+    let colSum = 0
+    for (let m = 0; m < MY; m++) colSum += col[m]
+    if (colSum > 0) {
+      const uy = rng.nextFloat() * colSum
+      let lo = 0
+      let acc = col[0]
+      while (lo < MY - 1 && acc < uy) {
+        lo++
+        acc += col[lo]
+      }
+      y = yt.ys[lo] + (rng.nextFloat() - 0.5) * yt.dy
+    } else {
+      // numerical safety net (cannot happen for a non-negative density):
+      // fall back to a diagonal-weights Gaussian draw
+      let wSum = 0
+      for (const st of states) wSum += (st.aRe * st.aRe + st.aIm * st.aIm) * Math.exp(-((z - st.cz) ** 2) / (2 * st.sz * st.sz))
+      const uy = rng.nextFloat() * (wSum || 1)
+      let best = 0
+      let wAcc = (states[0].aRe * states[0].aRe + states[0].aIm * states[0].aIm) * Math.exp(-((z - states[0].cz) ** 2) / (2 * states[0].sz * states[0].sz))
+      while (best < states.length - 1 && wAcc < uy) {
+        best++
+        const st = states[best]
+        wAcc += (st.aRe * st.aRe + st.aIm * st.aIm) * Math.exp(-((z - st.cz) ** 2) / (2 * st.sz * st.sz))
+      }
+      const bs = states[best]
+      y = bs.cy + bs.sy * rng.normal()
+    }
+    ysOut[k] = y
+
+    // 4. Born spin outcome of the local state, coherent per cohId group
+    let wUp = 0
+    let wDown = 0
+    for (const g of groups.polarized) {
+      let s0r = 0
+      let s0i = 0
+      let s1r = 0
+      let s1i = 0
+      for (const i of g) {
+        const st = states[i]
+        const chiI = spinor(q.branches[i].spinTheta, q.branches[i].spinSign)
+        const amp = Math.exp(
+          -((y - st.cy) ** 2) / (4 * st.sy * st.sy) - ((z - st.cz) ** 2) / (4 * st.sz * st.sz),
+        )
+        const ph =
+          st.ph +
+          (AG_MASS * (st.vy * (y - st.cy) + st.vz * (z - st.cz))) / HBAR
+        const ar = st.aRe * amp
+        const ai = st.aIm * amp
+        const wr = ar * Math.cos(ph) - ai * Math.sin(ph)
+        const wi = ar * Math.sin(ph) + ai * Math.cos(ph)
+        s0r += wr * chiI[0] - wi * chiI[1]
+        s0i += wi * chiI[0] + wr * chiI[1]
+        s1r += wr * chiI[2] - wi * chiI[3]
+        s1i += wi * chiI[2] + wr * chiI[3]
+      }
+      // ⟨χ_f,+|Ψ_g⟩ (χ_f given in the (↑z, ↓z) basis); P(−) per group follows
+      // from completeness: |⟨χ_f,+|Ψ⟩|² + |⟨χ_f,−|Ψ⟩|² = ⟨Ψ|Ψ⟩
+      const m0r = chiF[0] * s0r + chiF[1] * s0i + chiF[2] * s1r + chiF[3] * s1i
+      const m0i = chiF[0] * s0i - chiF[1] * s0r + chiF[2] * s1i - chiF[3] * s1r
+      const gNorm = s0r * s0r + s0i * s0i + s1r * s1r + s1i * s1i
+      const pUp = m0r * m0r + m0i * m0i
+      wUp += pUp
+      wDown += gNorm - pUp
+    }
+    for (const i of groups.mixed) {
+      // unpolarized component: no spinor, ½/½ incoherently
       const st = states[i]
       const w2 = st.aRe * st.aRe + st.aIm * st.aIm
-      wSum += w2 * Math.exp(-((z - st.cz) ** 2) / (2 * st.sz * st.sz))
-      wAcc[i] = wSum
+      const w =
+        w2 *
+        Math.exp(-((y - st.cy) ** 2) / (2 * st.sy * st.sy) - ((z - st.cz) ** 2) / (2 * st.sz * st.sz))
+      wUp += 0.5 * w
+      wDown += 0.5 * w
     }
-    const uy = rng.nextFloat() * wSum
-    let bestIdx = 0
-    while (bestIdx < states.length - 1 && wAcc[bestIdx] < uy) bestIdx++
-    const best = states[bestIdx]
-    const y = best.cy + best.sy * rng.normal()
-    ys[k] = y
-
-    // local spinor at (y, z): s = Σ_i a_i ψ_i(y,z) χ_i, then Born along frame axis
-    let s0r = 0
-    let s0i = 0
-    let s1r = 0
-    let s1i = 0
-    for (let i = 0; i < states.length; i++) {
-      const st = states[i]
-      const chiI = spinor(q.branches[i].spinTheta, q.branches[i].spinSign)
-      const amp = Math.exp(
-        -((y - st.cy) ** 2) / (4 * st.sy * st.sy) - ((z - st.cz) ** 2) / (4 * st.sz * st.sz),
-      )
-      const ph =
-        st.ph +
-        (AG_MASS * (st.vy * (y - st.cy) + st.vz * (z - st.cz))) / HBAR
-      const ar = st.aRe * amp
-      const ai = st.aIm * amp
-      const wr = ar * Math.cos(ph) - ai * Math.sin(ph)
-      const wi = ar * Math.sin(ph) + ai * Math.cos(ph)
-      s0r += wr * chiI[0] - wi * chiI[1]
-      s0i += wi * chiI[0] + wr * chiI[1]
-      s1r += wr * chiI[2] - wi * chiI[3]
-      s1i += wi * chiI[2] + wr * chiI[3]
+    const norm = wUp + wDown
+    if (groups.polarized.length === 0) {
+      // purely unpolarized beam: the screen performs no spin measurement
+      signs[k] = 0
+    } else if (norm > 1e-300) {
+      signs[k] = rng.nextFloat() < wUp / norm ? 1 : -1
+    } else {
+      // zero local norm: this point carries no probability — mark unmeasured
+      signs[k] = 0
     }
-    // Born along the screen-frame axis: ⟨χ_f,+|s⟩
-    const m0r = chiF[0] * s0r + chiF[1] * s0i + chiF[2] * s1r + chiF[3] * s1i
-    const m0i = chiF[0] * s0i - chiF[1] * s0r + chiF[2] * s1i - chiF[3] * s1r
-    const pUp = m0r * m0r + m0i * m0i
-    const normS = s0r * s0r + s0i * s0i + s1r * s1r + s1i * s1i
-    const up = normS > 1e-300 ? rng.nextFloat() < pUp / normS : rng.nextFloat() < 0.5
-    signs[k] = up ? 1 : -1
-    thetas[k] = q.branches[bestIdx].spinTheta
+    // the recorded axis is the one the Born outcome refers to
+    thetas[k] = frameThetaRad
   }
   // sort by arrival time
   const order = Array.from({ length: count }, (_, i) => i).sort((a, b) => times[a] - times[b])
@@ -1017,5 +1191,5 @@ export function sampleScreenHits(
   }
   const sOrder = new Int8Array(count)
   for (let i = 0; i < count; i++) sOrder[i] = signs[order[i]]
-  return { times: pick(times), ys: pick(ys), zs: pick(zs), thetas: pick(thetas), signs: sOrder }
+  return { times: pick(times), ys: pick(ysOut), zs: pick(zs), thetas: pick(thetas), signs: sOrder }
 }

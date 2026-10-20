@@ -405,3 +405,127 @@ describe('quantum coherence (spinors, phases, recombiner)', () => {
     expect(q.interferometerPhases).toHaveLength(0)
   })
 })
+
+describe('quantum Born conservation (parameterized)', () => {
+  // A fully split pure branch must satisfy
+  //   Σ_s |a⟨χ_θ,s|χ⟩|² = |a|²
+  // through the whole pipeline: the total weight of the magnet's children
+  // equals the parent weight for every split angle.
+  for (const deg of [0, 15, 45, 75, 90, 137, 180]) {
+    it(`filter + analyzer(${deg}°): children keep the parent weight 0.5`, () => {
+      const filter = apparatus({ xStart: 0.2, blockedPort: 'down' })
+      const mag = apparatus({ xStart: 0.44, angleDeg: deg, attachTo: `${filter.id}:up` })
+      const q = simulateQuantum(config({ apparatuses: [filter, mag], screenX: 0.78 }))
+      const total = q.branches.reduce((a, b) => a + b.weight, 0)
+      expect(total + q.discardedWeight).toBeCloseTo(0.5, 10)
+      // zero-weight ports are pruned (0° and 180° keep a single branch); the
+      // 180° "zero" amplitude carries ~1e-33 of round-off, above nothing but
+      // below the 1e-10 cutoff
+      expect(q.discardedWeight).toBeLessThan(1e-20)
+      const expected = [0.5 * Math.cos((deg * Math.PI) / 360) ** 2, 0.5 * Math.sin((deg * Math.PI) / 360) ** 2]
+        .sort((a, b) => b - a)
+        .filter((w) => w > 1e-10)
+      const got = q.branches.map((b) => b.weight).sort((a, b) => b - a)
+      expect(got).toHaveLength(expected.length)
+      for (let i = 0; i < expected.length; i++) expect(got[i]).toBeCloseTo(expected[i], 6)
+    })
+  }
+
+  it('sequential analyzers: weights follow the Born chain', () => {
+    const a1 = apparatus({ xStart: 0.18, angleDeg: 30 })
+    const a2 = apparatus({ xStart: 0.42, angleDeg: 100, attachTo: `${a1.id}:up` })
+    const a3 = apparatus({ xStart: 0.66, angleDeg: 55, attachTo: `${a2.id}:down` })
+    const q = simulateQuantum(
+      config({ apparatuses: [a1, a2, a3], screenX: 0.95, particleCount: 10, heroCount: 10 }),
+    )
+    expect(q.branches).toHaveLength(4)
+    const total = q.branches.reduce((a, b) => a + b.weight, 0)
+    expect(total).toBeCloseTo(1, 10)
+    // branches are identified by their last-split axis and spin sign
+    const at = (thetaDeg: number, sign: number) =>
+      q.branches.find(
+        (b) => Math.abs(b.spinTheta - (thetaDeg * Math.PI) / 180) < 1e-9 && b.spinSign === sign,
+      )!
+    // chain: 30° (½/½) → 100° on up (rel. 70°) → 55° on a2:down (rel. −45°).
+    // Born weights |⟨χ_θ2,s|χ_θ1,s'⟩|²: for s=+1, s'=−1 it is sin²((θ2−θ1)/2).
+    expect(at(30, -1).weight).toBeCloseTo(0.5, 6)
+    expect(at(100, 1).weight).toBeCloseTo(0.5 * Math.cos((35 * Math.PI) / 180) ** 2, 6)
+    expect(at(55, 1).weight).toBeCloseTo(
+      0.5 * Math.sin((35 * Math.PI) / 180) ** 2 * Math.sin((22.5 * Math.PI) / 180) ** 2,
+      6,
+    )
+    expect(at(55, -1).weight).toBeCloseTo(
+      0.5 * Math.sin((35 * Math.PI) / 180) ** 2 * Math.cos((22.5 * Math.PI) / 180) ** 2,
+      6,
+    )
+  })
+})
+
+describe('quantum sampling statistics vs the density', () => {
+  it('sampled z follows the coherent marginal (χ² on equal-probability bins)', () => {
+    const cfg = config()
+    const q = simulateQuantum(cfg)
+    const N = 32000
+    const hits = sampleScreenHits(q, cfg.screenX, N, 2024)
+    // INDEPENDENT reference: the transverse marginal pooled over the arrival-
+    // time distribution. Lobe centers drift between frames (vz ≈ 20 m/s over
+    // the ~0.15 ms arrival window ≈ several σz), so the target for pooled
+    // hits is the flux-weighted mixture over frames:
+    //   p(z) ∝ Σ_f w_f · Σ_b w²_b · N(z; cz_b(f), σz_b(f)),
+    //   w_f = exp(−(screenX−cx_f)²/(2σx_f²)) / σx_f  (the x-flux at the screen;
+    //   all branches share cx, σx). Cross terms are < e^{−10⁹} here.
+    const FR = q.header.frameCount
+    const zLo = -0.025
+    const zHi = 0.025
+    const NG = 4096
+    const dz = (zHi - zLo) / NG
+    const pdf = new Float64Array(NG)
+    for (let f = 0; f < FR; f++) {
+      const b0 = q.branches[0]
+      const wf =
+        Math.exp(-((cfg.screenX - b0.cx[f]) ** 2) / (2 * b0.sx[f] * b0.sx[f])) / b0.sx[f]
+      for (const b of q.branches) {
+        const c = wf * b.weight
+        const inv = 1 / (2 * b.sz[f] * b.sz[f])
+        for (let g = 0; g < NG; g++) {
+          pdf[g] += c * Math.exp(-((zLo + (g + 0.5) * dz - b.cz[f]) ** 2) * inv)
+        }
+      }
+    }
+    let sum = 0
+    for (let g = 0; g < NG; g++) sum += pdf[g]
+    // quantile bin edges (16 equal-probability bins → χ² is well-conditioned)
+    const BINS = 16
+    const edges = [zLo]
+    let target = sum / BINS
+    let acc = 0
+    for (let g = 0; g < NG; g++) {
+      acc += pdf[g]
+      while (edges.length < BINS && acc >= target) {
+        edges.push(zLo + (g + 1) * dz)
+        target += sum / BINS
+      }
+    }
+    edges.push(zHi)
+    const counts = new Array(BINS).fill(0)
+    for (let i = 0; i < N; i++) {
+      // binary search: bin = number of internal edges below z
+      let lo = 1
+      let hi = BINS - 1
+      let b = 0
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1
+        if (edges[mid] <= hits.zs[i]) {
+          b = mid
+          lo = mid + 1
+        } else hi = mid - 1
+      }
+      counts[b]++
+    }
+    let chi2 = 0
+    const expected = N / BINS
+    for (const c of counts) chi2 += (c - expected) ** 2 / expected
+    // dof = BINS − 1; allow ~5σ of the χ² distribution plus frame-rounding slack
+    expect(chi2).toBeLessThan(15 + 5 * Math.sqrt(2 * 15) + 15)
+  })
+})
